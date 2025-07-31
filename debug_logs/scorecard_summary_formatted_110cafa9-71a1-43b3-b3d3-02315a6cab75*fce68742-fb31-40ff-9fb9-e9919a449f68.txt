@@ -1,0 +1,180 @@
+[
+  {
+    "userId": "650dfb7e-db35-4cf5-adbf-bbd2a5194267",
+    "userName": "Patrick Gomes Siqueira",
+    "scorecardInterviewId": "00ab3a31-d0d7-4af4-8d61-ecc122adfdbf",
+    "interviewName": "Abordagem",
+    "feedback": {
+      "comment": "Avaliação feita via script de teste de fluxo completo. O candidato parece promissor.",
+      "proceed": "YES"
+    },
+    "privateNotes": "Teste automatizado (fluxo completo) executado com sucesso.",
+    "skillCategories": [
+      {
+        "name": "Match Técnico",
+        "skills": [
+          {
+            "name": "1 ano de experiência Comercial em R&S",
+            "description": "",
+            "score": 5
+          },
+          {
+            "name": "Inglês Fluente",
+            "description": "",
+            "score": 3
+          },
+          {
+            "name": "Experiência como Recrutador por pelo menos 3 anos",
+            "description": "",
+            "score": 3
+          },
+          {
+            "name": "Case de Sucesso trazendo pelo menos 2 clientes",
+            "description": "",
+            "score": 1
+          },
+          {
+            "name": "Pelo menos 3 anos de experiência Comercial Hunter",
+            "description": "",
+            "score": 4
+          }
+        ]
+      },
+      {
+        "name": "Match Comportamental",
+        "skills": [
+          {
+            "name": "habilidade interpessoal",
+            "description": "",
+            "score": 1
+          },
+          {
+            "name": "Senso de Urgência ",
+            "description": "",
+            "score": 0
+          },
+          {
+            "name": "Foco em Resultados",
+            "description": "",
+            "score": 0
+          },
+          {
+            "name": "Capacidade de Organização",
+            "description": "",
+            "score": 0
+          },
+          {
+            "name": "capacidade analítica",
+            "description": "",
+            "score": 0
+          }
+        ]
+      },
+      {
+        "name": "Match Cultural",
+        "skills": [
+          {
+            "name": "2 anos de experiência em Consultoria de Recrutamento Média e Alta Gestão",
+            "description": "",
+            "score": 0
+          },
+          {
+            "name": "No teste IAC, o candidato apresentou match com a empresa em todas as 6 dimensões?",
+            "description": "",
+            "score": 0
+          }
+        ]
+      },
+      {
+        "name": "Match Perfil UAU",
+        "skills": [
+          {
+            "name": "Sem gaps, não jumper, formação de primeira linha.",
+            "description": "",
+            "score": 0
+          }
+        ]
+      },
+      {
+        "name": "Match Senioridade",
+        "skills": [
+          {
+            "name": "Volume de Faturamento (pelo menos 350k aa)",
+            "description": "",
+            "score": 0
+          },
+          {
+            "name": "Pelo menos 2 anos como Consultor",
+            "description": "",
+            "score": 0
+          }
+        ]
+      },
+      {
+        "name": "Match Atratividade",
+        "skills": [
+          {
+            "name": "Incremento de remuneração entre 15% e 30%,  Oportunidade Carreira melhor, Interesse do candidato.",
+            "description": "",
+            "score": 0
+          }
+        ]
+      },
+      {
+        "name": "Match Desafio",
+        "skills": [
+          {
+            "name": "Vivência em abertura de Mercado dentro de Consultoria",
+            "description": "",
+            "score": 0
+          },
+          {
+            "name": "Incremento significativo da carteira de clientes",
+            "description": "",
+            "score": 0
+          }
+        ]
+      },
+      {
+        "name": "Competências Técnicas",
+        "skills": [
+          {
+            "name": "tempo de experiência em processos com catalisadores?",
+            "description": "",
+            "score": 0
+          },
+          {
+            "name": "tem experiência com atendimento ao cliente? Cite um case de um problema que precisou resolver",
+            "description": "",
+            "score": 0
+          },
+          {
+            "name": "experiência com controle de qualidade de processos químicos?",
+            "description": "",
+            "score": 0
+          },
+          {
+            "name": "tipo de processos químicos/setores você tem experiência? (refino?)",
+            "description": "",
+            "score": 0
+          }
+        ]
+      },
+      {
+        "name": "Perfil UAU",
+        "skills": [
+          {
+            "name": "formação primeira linha",
+            "description": "",
+            "score": 0
+          },
+          {
+            "name": "formação eng química",
+            "description": "",
+            "score": 0
+          }
+        ]
+      }
+    ]
+  }
+]

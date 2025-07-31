@@ -1,0 +1,8 @@
+📘 Início do log PhantomBuster
+
+[2025-07-30T13:37:37.851Z] 🚀 Lançando o agent...
+[2025-07-30T13:37:40.158Z] ❌ Erro ao lançar o agent:
+[2025-07-30T13:37:40.158Z] Error: ⚠️ launchId não recebido.
+    at launchAgent (file:///home/patrick/Documentos/Projetcs/AI-PEOPLE/back-end/meu-projeto-backend/phantom-launcher.js:70:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async file:///home/patrick/Documentos/Projetcs/AI-PEOPLE/back-end/meu-projeto-backend/phantom-launcher.js:138:23

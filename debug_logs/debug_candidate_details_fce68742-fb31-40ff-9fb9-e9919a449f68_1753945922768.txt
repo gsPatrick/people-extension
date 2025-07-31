@@ -1,0 +1,2027 @@
+{
+  "source": "fetchCandidateDetailsForJobContext",
+  "apiResponses": {
+    "talentProfile": {
+      "attributes": null,
+      "createdAt": "2025-06-09T17:10:18.654Z",
+      "email": "teste@gmail.com",
+      "headline": "",
+      "id": "fce68742-fb31-40ff-9fb9-e9919a449f68",
+      "linkedinUsername": "[teste] candidato mock via script - guto -1",
+      "location": "teste",
+      "name": "[TESTE] Candidato Mock via Script - GUTO -1",
+      "phone": "5571983141335",
+      "status": "UNKNOWN",
+      "updatedAt": "2025-07-31T05:08:11.561Z",
+      "jobs": [
+        {
+          "contractType": [],
+          "locationCity": null,
+          "customFields": [
+            {
+              "name": "Dono",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*780e8d40-6922-4aaf-a404-f3679039daaf",
+              "type": "select",
+              "value": "Helena Magalhães"
+            },
+            {
+              "name": "Consultor",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*fa773804-c414-4acc-910f-7f35375a5e86",
+              "type": "select",
+              "value": "Helena Magalhães"
+            },
+            {
+              "name": "Pesquisador",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*99b900b8-66ea-4c62-bb83-e31db6d00287",
+              "type": "select",
+              "value": "Caio Pariz"
+            },
+            {
+              "name": "Setor",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*0ae9f97b-c8da-41b5-9c34-9513fa349c26",
+              "type": "select",
+              "value": "Serviços Corporativos"
+            },
+            {
+              "name": "Parcela Kick-off - Valor",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*8ae9d825-529c-4189-9038-7f2ed5895ed2",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Parcela Kick-off - data prevista",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*43aca291-6ab8-44e4-9d6d-8a7a240ce325",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Parcela Kick-off - data realizada",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*3a2b3321-6375-4f59-b8bb-adf79aa54233",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Parcela Shortlist - Valor",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*cb5cd110-0249-48d8-87ea-e93a20e7ccd2",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Parcela Shortlist - data prevista",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*0c0b0b05-b085-4f27-b98a-a111b3b4bd4d",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Parcela Shortlist - data realizada",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*9ecf2096-9972-4cb2-8cfb-70773dd55156",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Parcela Fechamento - Valor",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*0846d196-d526-4af5-976e-b8b83abd28e9",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Parcela Fechamento - data prevista",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*839bb49a-2b56-4691-9482-402fc4642a4d",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Parcela Fechamento - data realizada",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*d1e8bc3d-304b-42a1-b797-18d374cef70e",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Data do Kick-off",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*b914a35f-e14f-4eac-9089-a0297f9d3221",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Data de início das buscas",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*4e52a107-4d7f-4fb1-8c01-24dba54a54b1",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Data de início das abordagens",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*a77ae531-e64f-483d-a553-6775c0c49f7d",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Data de início das entrevistas",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*95a8b438-6f3d-4b60-86a6-1b9878c10d9a",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Data de entrega do FUP",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*344ee645-3f97-4733-8f11-f99d92523502",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "FUP entregue no prazo",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*497233c7-623e-4921-81a2-7289f4923bae",
+              "type": "select",
+              "value": "-"
+            },
+            {
+              "name": "Data de entrega da SL",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*9791d5d1-138b-4352-91c6-ce6b17342050",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Fechamento de job",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*8ba3f68b-19fa-490b-b966-d90bab7e8215",
+              "type": "select",
+              "value": "-"
+            },
+            {
+              "name": "Status Feedbacks",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*c7b0167e-baa3-45fb-9ec7-97209c8eacb1",
+              "type": "select",
+              "value": "Não Realizado"
+            },
+            {
+              "name": "Palavras-chave para busca de candidatos:",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*0ec7579c-bcec-403c-8d02-9ea8b50513ec",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Cargos similares:",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*798bcedc-446b-48bd-bc4d-623c36a47db7",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Áreas da Empresa onde pode estar:",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*056f5343-d30a-4b12-b037-b608ee88c125",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Setores que fazem sentido buscar:",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*e6742f40-df8d-4844-a699-1c857f9b1175",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Cidades/estados para busca:",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*644ebd4a-905e-43d1-a57d-92ea7252805f",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Formação de primeira linha?",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*5c6ee161-ec77-49d0-a66a-e917e145faea",
+              "type": "select",
+              "value": "Sim"
+            },
+            {
+              "name": "Faixa etária esperada:",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*8a5f32da-75e0-4665-a403-eecae0d5f6e6",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Empresas para busca:",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*5ade0d28-6f92-49bf-a3c8-857689174ac3",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Empresas para mapeamento de estrutura:",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*a5e0c77a-4578-4bbd-be5a-e6e0405b1769",
+              "type": "text",
+              "value": "-"
+            },
+            {
+              "name": "Apresentação do cliente e desafios da posição:",
+              "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*baa4f6b3-0ef7-4fa6-a70e-c39faebbb1c9",
+              "type": "text",
+              "value": "-"
+            }
+          ],
+          "stages": [
+            {
+              "phase": {
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Listagem",
+                "id": "01HPMQCM9SD9T4ENZ31GTVTFV9",
+                "userName": "Helena Magalhães",
+                "type": "listing",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "order": 1,
+                "updatedAt": "2024-02-14T21:12:00.057Z"
+              },
+              "createdAt": "2024-02-14T21:12:00.057Z",
+              "name": "Identificados",
+              "id": "1",
+              "userName": "Helena Magalhães",
+              "type": "listed",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "updatedAt": "2024-02-14T21:12:00.057Z",
+              "order": 1
+            },
+            {
+              "phase": {
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Listagem",
+                "id": "01HPMQCM9ZC1XY1X037X52QKYC",
+                "userName": "Helena Magalhães",
+                "type": "listing",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "order": 1,
+                "updatedAt": "2024-02-14T21:12:00.057Z"
+              },
+              "createdAt": "2024-02-14T21:12:00.057Z",
+              "name": "Com contato",
+              "id": "2",
+              "userName": "Helena Magalhães",
+              "type": "listed",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "updatedAt": "2024-02-14T21:12:00.057Z",
+              "order": 2
+            },
+            {
+              "phase": {
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Abordagem",
+                "id": "01HPMQCMA01CAK5GH9K9Z1F5R1",
+                "userName": "Helena Magalhães",
+                "type": "approach",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "order": 2,
+                "updatedAt": "2024-02-14T21:12:00.057Z"
+              },
+              "createdAt": "2024-02-14T21:12:00.057Z",
+              "name": "Abordados",
+              "id": "3",
+              "userName": "Helena Magalhães",
+              "type": "inApproach",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "updatedAt": "2024-02-14T21:12:00.057Z",
+              "order": 3
+            },
+            {
+              "phase": {
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Candidatura",
+                "id": "01HPMQCMA2A9SD4ZSSE34TFKCH",
+                "userName": "Helena Magalhães",
+                "type": "application",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "order": 4,
+                "updatedAt": "2024-02-14T21:12:00.057Z"
+              },
+              "createdAt": "2024-02-14T21:12:00.057Z",
+              "name": "Potencial Ett",
+              "id": "4",
+              "userName": "Helena Magalhães",
+              "type": "inApproach",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "updatedAt": "2024-02-14T21:12:00.057Z",
+              "order": 4
+            },
+            {
+              "phase": {
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Fit Cultural",
+                "id": "01HPMQCMA3BPG4WX692YGVM68H",
+                "userName": "Helena Magalhães",
+                "type": "culturalFit",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "order": 5,
+                "updatedAt": "2024-02-14T21:12:00.057Z"
+              },
+              "createdAt": "2024-02-14T21:12:00.057Z",
+              "name": "DISC/IAC",
+              "id": "5",
+              "userName": "Helena Magalhães",
+              "type": "culturalInterview",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "updatedAt": "2024-02-14T21:12:00.057Z",
+              "order": 5
+            },
+            {
+              "phase": {
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Fit Cultural",
+                "id": "01HPMQCMA5B1PAQVHP9PCXY1XQ",
+                "userName": "Helena Magalhães",
+                "type": "culturalFit",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "order": 5,
+                "updatedAt": "2024-02-14T21:12:00.057Z"
+              },
+              "createdAt": "2024-02-14T21:12:00.057Z",
+              "name": "Entrevista People",
+              "id": "6",
+              "userName": "Helena Magalhães",
+              "type": "culturalInterview",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "updatedAt": "2024-02-14T21:12:00.057Z",
+              "order": 6
+            },
+            {
+              "phase": {
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Fit Técnico",
+                "id": "01HPMQCMA8BJ1EAERGEGT678NE",
+                "userName": "Helena Magalhães",
+                "type": "technicalFit",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "order": 6,
+                "updatedAt": "2024-02-14T21:12:00.057Z"
+              },
+              "createdAt": "2024-02-14T21:12:00.057Z",
+              "name": "Short List",
+              "id": "7",
+              "userName": "Helena Magalhães",
+              "type": "technicalInterview",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "updatedAt": "2024-02-14T21:12:00.057Z",
+              "order": 7
+            },
+            {
+              "phase": {
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Fit Técnico",
+                "id": "01HPMQCMACJZZ4R3DMZASN3M2N",
+                "userName": "Helena Magalhães",
+                "type": "technicalFit",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "order": 6,
+                "updatedAt": "2024-02-14T21:12:00.057Z"
+              },
+              "createdAt": "2024-02-14T21:12:00.057Z",
+              "name": "Entrevista com Cliente",
+              "id": "8",
+              "userName": "Helena Magalhães",
+              "type": "technicalInterview",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "updatedAt": "2024-02-14T21:12:00.057Z",
+              "order": 8
+            },
+            {
+              "phase": {
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Oferta",
+                "id": "01HPMQCMAESY2HPKRAV0R5T9K9",
+                "userName": "Helena Magalhães",
+                "type": "offer",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "order": 7,
+                "updatedAt": "2024-02-14T21:12:00.057Z"
+              },
+              "createdAt": "2024-02-14T21:12:00.057Z",
+              "name": "Referências",
+              "id": "9",
+              "userName": "Helena Magalhães",
+              "type": "inOffer",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "updatedAt": "2024-02-14T21:12:00.057Z",
+              "order": 9
+            },
+            {
+              "phase": {
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Oferta",
+                "id": "01HPMQCMAGW9K119YNWKCB9EDF",
+                "userName": "Helena Magalhães",
+                "type": "offer",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "order": 7,
+                "updatedAt": "2024-02-14T21:12:00.057Z"
+              },
+              "createdAt": "2024-02-14T21:12:00.057Z",
+              "name": "Oferta",
+              "id": "10",
+              "userName": "Helena Magalhães",
+              "type": "inOffer",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "updatedAt": "2024-02-14T21:12:00.057Z",
+              "order": 10
+            },
+            {
+              "phase": {
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Contratação",
+                "id": "01HPMQCMAJ4YKKPX4K1AFA50NS",
+                "userName": "Helena Magalhães",
+                "type": "hiring",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "order": 8,
+                "updatedAt": "2024-02-14T21:12:00.057Z"
+              },
+              "createdAt": "2024-02-14T21:12:00.057Z",
+              "name": "Contratação",
+              "id": "11",
+              "userName": "Helena Magalhães",
+              "type": "hired",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "updatedAt": "2024-02-14T21:12:00.057Z",
+              "order": 11
+            }
+          ],
+          "isTalentPool": true,
+          "locationCountry": "BR",
+          "resumeAnalyzer": {
+            "active": false,
+            "description": "<p>[T&iacute;tulo da Posi&ccedil;&atilde;o]</p>\n<p>Local de trabalho: [Insira o local da empresa ou se &eacute; uma posi&ccedil;&atilde;o remota]</p>\n<p>Contato: [Forne&ccedil;a informa&ccedil;&otilde;es de contato para d&uacute;vidas ou esclarecimentos.]</p>\n<p>E-mail: [Forne&ccedil;a informa&ccedil;&otilde;es de contato]</p>",
+            "statements": []
+          },
+          "status": "open",
+          "tenantClientId": "f30e0a11-e614-4362-ac95-93551e02d201",
+          "managerId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+          "activeTalents": 122,
+          "requisitions": [],
+          "housingAssistance": false,
+          "locationRequired": false,
+          "name": "BD People ",
+          "hired": 0,
+          "linkedinSettings": {
+            "skills": []
+          },
+          "offLimits": [],
+          "talentsCount": 177,
+          "tenantClient": {
+            "name": "PEOPLE ORIENTED CONSULTORIA",
+            "logo": "https://files.inhire.app/tenant-public-files/peopleoriented/LogoMarca*6b5e6aaf-4acf-49f2-8f9a-a1fe4ef8de56.png",
+            "id": "f30e0a11-e614-4362-ac95-93551e02d201"
+          },
+          "seniority": "senior",
+          "evaluatorIds": [],
+          "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+          "acceptedSeniority": [],
+          "id": "110cafa9-71a1-43b3-b3d3-02315a6cab75",
+          "tags": [
+            {
+              "createdAt": "2025-01-16T12:29:06.669Z",
+              "color": "#4ac4d4",
+              "name": "1-shortlist",
+              "id": "01JHQHDD7D3B307P9YMKQ3ZHWN",
+              "userName": "Helena Magalhães",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "updatedAt": "2025-01-16T12:29:06.669Z"
+            },
+            {
+              "createdAt": "2025-01-16T12:29:06.678Z",
+              "color": "#55c3f4",
+              "name": "2-shortlist",
+              "id": "01JHQHDD7PJZ95N3BGGC7DGKZV",
+              "userName": "Helena Magalhães",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "updatedAt": "2025-01-16T12:29:06.678Z"
+            },
+            {
+              "createdAt": "2025-01-16T12:29:06.678Z",
+              "color": "#ffee59",
+              "name": "3-shortlist",
+              "id": "01JHQHDD7P2QS20302MDE3MBJH",
+              "userName": "Helena Magalhães",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "updatedAt": "2025-01-16T12:29:06.678Z"
+            },
+            {
+              "createdAt": "2025-01-16T12:29:06.678Z",
+              "color": "#f46055",
+              "name": "4-shortlist",
+              "id": "01JHQHDD7PQHEH5WFE1H3CEBD3",
+              "userName": "Helena Magalhães",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "updatedAt": "2025-01-16T12:29:06.678Z"
+            },
+            {
+              "createdAt": "2025-01-16T12:29:06.678Z",
+              "color": "#f46055",
+              "name": "5-shortlist",
+              "id": "01JHQHDD7PMTZKWFQW28C1PTJT",
+              "userName": "Helena Magalhães",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "updatedAt": "2025-01-16T12:29:06.678Z"
+            },
+            {
+              "createdAt": "2025-01-16T20:49:05.291Z",
+              "color": "#f46055",
+              "name": "Consultor",
+              "id": "01JHRE0WRBGV66R79KHPWA4ZQG",
+              "userName": "Caio Gomes Pariz",
+              "userId": "c2f0b3b1-3152-4279-832e-28288074c52d",
+              "updatedAt": "2025-01-16T20:49:05.291Z"
+            },
+            {
+              "createdAt": "2025-01-22T14:31:50.762Z",
+              "color": "#ffee59",
+              "name": "São Paulo",
+              "id": "01JJ76TEQAYFBW1HFDX81VQ20C",
+              "userName": "Caio Gomes Pariz",
+              "userId": "c2f0b3b1-3152-4279-832e-28288074c52d",
+              "updatedAt": "2025-01-22T14:31:50.762Z"
+            },
+            {
+              "createdAt": "2025-03-25T17:53:18.517Z",
+              "color": "#f46055",
+              "name": "Associate",
+              "id": "01JQ76ZX5NSGJ93J5M7YRXDEXK",
+              "userName": "Caio Gomes Pariz",
+              "userId": "c2f0b3b1-3152-4279-832e-28288074c52d",
+              "updatedAt": "2025-03-25T17:53:18.517Z"
+            }
+          ],
+          "locationState": null,
+          "pendencies": {
+            "diversity": {
+              "userName": "Helena Magalhães",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "status": "pending",
+              "updatedAt": "2025-01-16T12:29:04.007Z"
+            },
+            "positions": {
+              "userName": "Caio Gomes Pariz",
+              "userId": "c2f0b3b1-3152-4279-832e-28288074c52d",
+              "status": "seen",
+              "updatedAt": "2025-01-21T21:08:54.637Z"
+            },
+            "subscription-form": {
+              "userName": "inHire",
+              "userId": null,
+              "status": "done",
+              "updatedAt": "2025-01-16T12:29:10.246Z"
+            },
+            "workflows": {
+              "userName": "Helena Magalhães",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "status": "pending",
+              "updatedAt": "2025-01-16T12:29:04.007Z"
+            },
+            "talent-subscription-email": {
+              "userName": "Helena Magalhães",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "status": "done",
+              "updatedAt": "2025-01-16T12:29:04.007Z"
+            },
+            "test-form": {
+              "userName": "Helena Magalhães",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "status": "pending",
+              "updatedAt": "2025-01-16T12:29:04.007Z"
+            }
+          },
+          "slaDaysGoal": 30,
+          "userName": "Helena Magalhães",
+          "createdAt": "2025-01-16T12:29:04.008Z",
+          "talentSuggestions": false,
+          "prospects": 0,
+          "diversity": {
+            "createdAt": "2025-01-16T12:29:06.708Z",
+            "questions": [
+              {
+                "question": "Você pertence a um dos grupos abaixo?",
+                "answerType": "multipleChoice",
+                "active": true,
+                "description": "Esta pergunta engloba diversos grupos que historicamente sofreram discriminãção e exclusão, como mulheres, pessoas negras, pessoas LBGTI+, pessoas com deficiência, entre outros.",
+                "title": "Grupos de diversidade",
+                "userName": "Inhire",
+                "userId": null,
+                "required": true,
+                "diversityGroup": "diversityGroup",
+                "createdAt": "2023-11-30T19:17:34.999Z",
+                "id": "diversityGroup",
+                "answerOptions": [
+                  {
+                    "title": "Pessoa preta",
+                    "order": 1,
+                    "id": "023e8cab-6d33-4d34-a70f-430e59251a0f"
+                  },
+                  {
+                    "title": "Pessoa parda",
+                    "order": 2,
+                    "id": "f13f0f03-ba5c-4eb5-adfa-b52d0538a768"
+                  },
+                  {
+                    "title": "Indígena",
+                    "order": 3,
+                    "id": "93fee473-d9b5-4318-949c-594c20b9245d"
+                  },
+                  {
+                    "title": "Mulher",
+                    "order": 4,
+                    "id": "4cadb691-1455-4e0a-931d-1b10d9a36fc1"
+                  },
+                  {
+                    "title": "Pessoa com Deficiência",
+                    "order": 5,
+                    "id": "2ff1ba4e-c61d-4b2f-9e7a-214bfe66a35f"
+                  },
+                  {
+                    "title": "LGBTI+",
+                    "order": 6,
+                    "id": "0c8344bc-fce9-4793-bcc7-4e02203f5319"
+                  },
+                  {
+                    "title": "Não pertenço a nenhum dos grupos",
+                    "order": 7,
+                    "id": "75c11d4d-4171-444b-80ec-3266bdf93144"
+                  },
+                  {
+                    "title": "Prefiro não responder",
+                    "order": 8,
+                    "id": "298f3f85-a75c-4097-bf3c-ee6b024e8069"
+                  }
+                ],
+                "order": 1,
+                "updatedAt": "2023-11-30T19:17:34.999Z"
+              },
+              {
+                "question": "Você necessita de algum recurso específico de acessibilidade ou precisa de alguma adaptação para que o momento seja mais confortável para você?",
+                "answerType": "longText",
+                "active": true,
+                "title": "Pessoas com deficiência - Auxílio",
+                "userName": "Inhire",
+                "userId": null,
+                "required": true,
+                "diversityGroup": "peopleWithDisability",
+                "createdAt": "2023-11-30T19:17:34.999Z",
+                "subTitle": "Essa pergunta será visível somente se o talento responder sim na primeira pergunta de PcD",
+                "id": "peopleWithDisabilityAID",
+                "placeholder": "Você precisa de alguma acessibilidade para tornarmos o processo mais inclusivo para você? Escreva aqui...",
+                "isSubQuestionOf": "peopleWithDisability",
+                "order": 6,
+                "updatedAt": "2023-11-30T19:17:34.999Z"
+              },
+              {
+                "question": "Por favor, insira o número do CID informado em seu laudo médico.",
+                "answerType": "shortText",
+                "active": true,
+                "title": "Pessoas com deficiência - CID",
+                "userName": "Inhire",
+                "userId": null,
+                "required": true,
+                "diversityGroup": "peopleWithDisability",
+                "createdAt": "2023-11-30T19:17:34.999Z",
+                "subTitle": "Essa pergunta será visível somente se o talento responder sim na primeira pergunta de PcD",
+                "id": "peopleWithDisabilityCID",
+                "placeholder": "Informe aqui o número do CID...",
+                "isSubQuestionOf": "peopleWithDisability",
+                "order": 7,
+                "updatedAt": "2023-11-30T19:17:34.999Z"
+              },
+              {
+                "question": "Qual é a sua identidade de gênero?",
+                "answerType": "singleChoice",
+                "active": false,
+                "description": "A identidade de gênero refere-se à forma como uma pessoa se identifica em relação ao gênero masculino, feminino, ambos ou nenhum dos gêneros.",
+                "title": "Identidade de gênero",
+                "userName": "Inhire",
+                "userId": null,
+                "required": true,
+                "diversityGroup": "genderIdentity",
+                "createdAt": "2023-11-30T19:17:34.999Z",
+                "id": "genderIdentity",
+                "placeholder": "Selecione uma opção que te identifique",
+                "answerOptions": [
+                  {
+                    "description": "Homem Cisgênero (ou seja, você se identifica com o sexo que lhe foi designado ao nascer)",
+                    "id": "b5f9c1d5-b3bb-4ca3-82a5-a174120edc3e",
+                    "title": "Homem Cisgênero",
+                    "order": 1
+                  },
+                  {
+                    "description": "Mulher Cisgênero (ou seja, você se identifica com o sexo que lhe foi designada ao nascer)",
+                    "id": "e5823483-d923-4395-9dfd-dea9fac11585",
+                    "title": "Mulher Cisgênero",
+                    "order": 2
+                  },
+                  {
+                    "description": "Homem Transgênero (ou seja, você possui outra identidade de gênero, diferente da que lhe foi designado ao nascer)",
+                    "id": "72ec8c3b-b1ee-49a8-acd4-d8f865782f15",
+                    "title": "Homem Transgênero",
+                    "order": 3
+                  },
+                  {
+                    "description": "Mulher Transgênero (ou seja, você possui outra identidade de gênero, diferente da que lhe foi designada ao nascer)",
+                    "id": "1f133ae1-8b56-41c8-ac77-88fc7a6754e1",
+                    "title": "Mulher Transgênero",
+                    "order": 4
+                  },
+                  {
+                    "description": "Não binário (ou seja, não definem sua identidade dentro do sistema binário homem/mulher)",
+                    "id": "0b468ba3-4858-4af1-b215-6bfcaf40f8b3",
+                    "title": "Não binário",
+                    "order": 5
+                  },
+                  {
+                    "description": "Agênero (não se identifica com nenhum dos gêneros e nem com sua concepção)",
+                    "id": "acaadc01-b8ec-473e-9c9f-4320d8f127d7",
+                    "title": "Agênero",
+                    "order": 6
+                  },
+                  {
+                    "description": "Gênero fluido (ou seja, você se identifica com gêneros variáveis ao longo do tempo)",
+                    "id": "c19037a6-c51a-40fb-bd96-d3008114ddd3",
+                    "title": "Gênero fluido",
+                    "order": 7
+                  },
+                  {
+                    "title": "Prefiro não responder",
+                    "order": 8,
+                    "id": "81c2803f-7349-4c85-ab83-c8fbb98c2f5f"
+                  }
+                ],
+                "order": 2,
+                "updatedAt": "2023-11-30T19:17:34.999Z"
+              },
+              {
+                "question": "Qual é a sua orientação sexual?",
+                "answerType": "singleChoice",
+                "active": false,
+                "description": "A orientação sexual refere-se à atração emocional, romântica ou sexual que uma pessoa apresenta em relação a outras pessoas. Podendo ser do mesmo gênero, de gênero diferente, de ambos os gêneros ou mais de um gênero.",
+                "title": "Orientação sexual",
+                "userName": "Inhire",
+                "userId": null,
+                "required": true,
+                "diversityGroup": "sexualOrientation",
+                "createdAt": "2023-11-30T19:17:34.999Z",
+                "id": "sexualOrientation",
+                "placeholder": "Selecione uma opção que te identifique",
+                "answerOptions": [
+                  {
+                    "description": "Homossexual (atração sexual e/ou romântica por pessoas do mesmo gênero)",
+                    "id": "8904c64c-8de3-48c0-ad37-7ba9f96bae6c",
+                    "title": "Homossexual",
+                    "order": 1
+                  },
+                  {
+                    "description": "Heterossexual (atração sexual e/ou romântica por pessoas do gênero oposto)",
+                    "id": "778871ed-f039-446c-a395-c72f32658c65",
+                    "title": "Heterossexual",
+                    "order": 2
+                  },
+                  {
+                    "description": "Bissexual (atração sexual e romântica por mais de um gênero)",
+                    "id": "14c26f36-70e4-4814-9df0-edcf7664e566",
+                    "title": "Bissexual",
+                    "order": 3
+                  },
+                  {
+                    "description": "Pansexual (atração sexual ou romântica que não depende de gênero)",
+                    "id": "b0c8c6f6-80c8-4054-8578-0e85fc1448c4",
+                    "title": "Pansexual",
+                    "order": 4
+                  },
+                  {
+                    "description": "Assexual (falta de atração sexual por outra pessoa, independentemente de gênero, mas podem ter sentimentos românticos)",
+                    "id": "85733254-b110-4c66-9a9b-51b8c8508838",
+                    "title": "Assexual",
+                    "order": 5
+                  },
+                  {
+                    "title": "Outro",
+                    "order": 6,
+                    "id": "7160dfe4-b25f-4797-a3e1-61fed6dbfa32"
+                  },
+                  {
+                    "title": "Prefiro não responder",
+                    "order": 7,
+                    "id": "ae685f93-0908-4b87-9918-03df88fcf11b"
+                  }
+                ],
+                "order": 3,
+                "updatedAt": "2023-11-30T19:17:34.999Z"
+              },
+              {
+                "question": "Qual é a sua cor ou raça?",
+                "answerType": "singleChoice",
+                "active": false,
+                "description": "A cor ou raça refere-se a como a pessoa se enxerga com base em sua aparência física e características culturais, históricas e sociais.",
+                "title": "Cor ou raça",
+                "userName": "Inhire",
+                "userId": null,
+                "required": true,
+                "diversityGroup": "colourAndEthnicity",
+                "createdAt": "2023-11-30T19:17:34.999Z",
+                "id": "colourAndEthnicity",
+                "placeholder": "Selecione uma opção que te identifique",
+                "answerOptions": [
+                  {
+                    "title": "Amarela",
+                    "order": 1,
+                    "id": "d68d61dc-dfab-4c27-8abe-8292c4bc64ed"
+                  },
+                  {
+                    "title": "Indígena",
+                    "order": 2,
+                    "id": "77a5b7ed-0b3a-46dc-91af-cd66d630afee"
+                  },
+                  {
+                    "title": "Branca",
+                    "order": 3,
+                    "id": "9713c7d4-827b-4b66-b3b2-1c60ade464dd"
+                  },
+                  {
+                    "title": "Parda",
+                    "order": 4,
+                    "id": "c657a1ae-fd43-469d-af95-a1997788e6f1"
+                  },
+                  {
+                    "title": "Preta",
+                    "order": 5,
+                    "id": "7284faab-68be-4780-8713-120a95f75211"
+                  },
+                  {
+                    "title": "Prefiro não responder",
+                    "order": 7,
+                    "id": "36bacc4f-c8f5-4e2d-86dd-e61169c30632"
+                  }
+                ],
+                "order": 4,
+                "updatedAt": "2023-11-30T19:17:34.999Z"
+              },
+              {
+                "question": "Deseja se candidatar para a vaga como pessoa com deficiência?",
+                "answerType": "singleChoice",
+                "active": false,
+                "description": "As pessoas com deficiência são aquelas que possuem limitações físicas, sensoriais ou intelectuais que afetam suas atividades diárias.",
+                "title": "Pessoas com deficiência",
+                "userName": "Inhire",
+                "userId": null,
+                "required": true,
+                "diversityGroup": "peopleWithDisability",
+                "createdAt": "2023-11-30T19:17:34.999Z",
+                "id": "peopleWithDisability",
+                "placeholder": "Selecione uma das opções",
+                "answerOptions": [
+                  {
+                    "subQuestionIds": [
+                      "peopleWithDisabilityAID",
+                      "peopleWithDisabilityCID",
+                      "peopleWithDisabilityMedicalReport"
+                    ],
+                    "id": "d038f162-721c-488c-8c0b-4693211671d0",
+                    "title": "Sim",
+                    "subTitle": "Se o talento responder sim, ele irá para as próximas perguntas caso elas estejam habilitadas.",
+                    "order": 1
+                  },
+                  {
+                    "title": "Não",
+                    "order": 2,
+                    "id": "d8c4bdab-640b-495b-96f0-881af43ebabc"
+                  }
+                ],
+                "order": 5,
+                "updatedAt": "2023-11-30T19:17:34.999Z"
+              },
+              {
+                "question": "Por favor, anexe seu laudo médico aqui.",
+                "answerType": "fileUpload",
+                "active": false,
+                "description": "A apresentação do laudo médico para Pessoas com Deficiência é um requisito importante para garantir a equidade nos processos seletivos direcionados a esse grupo, assegurando a devida conformidade e a participação restrita à Pessoas com Deficiência.",
+                "title": "Pessoas com deficiência - Laudo médico",
+                "userName": "Inhire",
+                "userId": null,
+                "required": false,
+                "diversityGroup": "peopleWithDisability",
+                "createdAt": "2024-03-01T13:40:20.786Z",
+                "subTitle": "Essa pergunta será visível somente se o talento responder sim na primeira pergunta de PcD",
+                "id": "peopleWithDisabilityMedicalReport",
+                "isSubQuestionOf": "peopleWithDisability",
+                "order": 8,
+                "updatedAt": "2024-03-01T13:40:20.786Z"
+              }
+            ],
+            "active": true,
+            "privacyLink": "https://docs.google.com/document/d/10hS81K_Ghz0qbb37YXSRcqGYSuLszIq3KPWzVJDQGs4/preview",
+            "userName": "Helena Magalhães",
+            "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+            "introduction": "<p>Aqui na People Oriented Consultoria valorizamos muito a diversidade e acreditamos fortemente no seu poder de impulsionar ambientes mais criativos, colaborativos e acolhedores. Por isso, gostar&iacute;amos de saber um pouco mais sobre voc&ecirc;! Mas, n&atilde;o precisa ter receio, pois essas informa&ccedil;&otilde;es s&atilde;o confidenciais! O objetivo &eacute; que possamos ter mais intencionalidade ao longo de todo o processo seletivo, proporcionando uma jornada cuidadosa e positiva para todas as pessoas candidatas. Vamos nessa?</p>",
+            "updatedAt": "2025-01-16T12:29:06.708Z"
+          },
+          "statusHistory": [
+            {
+              "createdAt": "2025-01-16T12:29:04.008Z",
+              "status": "open"
+            }
+          ],
+          "recruiterId": "c2f0b3b1-3152-4279-832e-28288074c52d",
+          "area": "sales",
+          "updatedAt": "2025-06-09T17:10:19.720Z",
+          "duplicateFrom": {
+            "name": "@@Modelo para duplicar",
+            "id": "ab1f7522-7466-4480-abe4-83c6e021761d"
+          },
+          "description": "",
+          "duplication": {
+            "diversity": {
+              "status": "success"
+            },
+            "testForms": {
+              "metadata": [
+                {
+                  "idOrigin": "lextG6CF",
+                  "id": "krbn5Bdv"
+                },
+                {
+                  "idOrigin": "sG06otbC",
+                  "id": "pFlDVXSe"
+                }
+              ],
+              "status": "success"
+            },
+            "workflows": {
+              "status": "success"
+            },
+            "scorecard": {
+              "status": "success"
+            },
+            "subscriptionForms": {
+              "metadata": [
+                {
+                  "idOrigin": "lextG6CF",
+                  "id": "krbn5Bdv"
+                },
+                {
+                  "idOrigin": "sG06otbC",
+                  "id": "pFlDVXSe"
+                }
+              ],
+              "status": "success"
+            },
+            "tags": {
+              "status": "success"
+            }
+          },
+          "talent": {
+            "stage": {
+              "phase": {
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Listagem",
+                "id": "01HPMQCM9ZC1XY1X037X52QKYC",
+                "userName": "Helena Magalhães",
+                "type": "listing",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "order": 1,
+                "updatedAt": "2024-02-14T21:12:00.057Z"
+              },
+              "createdAt": "2024-02-14T21:12:00.057Z",
+              "name": "Com contato",
+              "id": "2",
+              "userName": "Helena Magalhães",
+              "type": "listed",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "updatedAt": "2024-02-14T21:12:00.057Z",
+              "order": 2
+            },
+            "status": "active",
+            "userName": "Patrick Gomes Siqueira",
+            "createdAt": "2025-06-09T17:10:19.510Z",
+            "source": "manual",
+            "updatedAt": "2025-07-31T06:22:54.226Z",
+            "userId": "650dfb7e-db35-4cf5-adbf-bbd2a5194267",
+            "id": "110cafa9-71a1-43b3-b3d3-02315a6cab75*fce68742-fb31-40ff-9fb9-e9919a449f68",
+            "talentId": "fce68742-fb31-40ff-9fb9-e9919a449f68",
+            "tags": []
+          }
+        }
+      ],
+      "userId": "650dfb7e-db35-4cf5-adbf-bbd2a5194267",
+      "userName": "Patrick Gomes Siqueira"
+    },
+    "applicationDetails": {
+      "stage": {
+        "phase": {
+          "createdAt": "2024-02-14T21:12:00.057Z",
+          "name": "Listagem",
+          "id": "01HPMQCM9ZC1XY1X037X52QKYC",
+          "userName": "Helena Magalhães",
+          "type": "listing",
+          "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+          "order": 1,
+          "updatedAt": "2024-02-14T21:12:00.057Z"
+        },
+        "createdAt": "2024-02-14T21:12:00.057Z",
+        "name": "Com contato",
+        "id": "2",
+        "userName": "Helena Magalhães",
+        "type": "listed",
+        "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+        "updatedAt": "2024-02-14T21:12:00.057Z",
+        "order": 2
+      },
+      "status": "active",
+      "userName": "Patrick Gomes Siqueira",
+      "createdAt": "2025-06-09T17:10:19.510Z",
+      "source": "manual",
+      "updatedAt": "2025-07-31T06:22:54.226Z",
+      "userId": "650dfb7e-db35-4cf5-adbf-bbd2a5194267",
+      "id": "110cafa9-71a1-43b3-b3d3-02315a6cab75*fce68742-fb31-40ff-9fb9-e9919a449f68",
+      "talentId": "fce68742-fb31-40ff-9fb9-e9919a449f68",
+      "tags": [],
+      "talent": {
+        "attributes": null,
+        "createdAt": "2025-06-09T17:10:18.654Z",
+        "email": "teste@gmail.com",
+        "headline": "",
+        "id": "fce68742-fb31-40ff-9fb9-e9919a449f68",
+        "linkedinUsername": "[teste] candidato mock via script - guto -1",
+        "location": "teste",
+        "name": "[TESTE] Candidato Mock via Script - GUTO -1",
+        "phone": "5571983141335",
+        "status": "UNKNOWN",
+        "updatedAt": "2025-07-31T05:08:11.561Z",
+        "jobs": [
+          {
+            "contractType": [],
+            "locationCity": null,
+            "customFields": [
+              {
+                "name": "Dono",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*780e8d40-6922-4aaf-a404-f3679039daaf",
+                "type": "select",
+                "value": "Helena Magalhães"
+              },
+              {
+                "name": "Consultor",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*fa773804-c414-4acc-910f-7f35375a5e86",
+                "type": "select",
+                "value": "Helena Magalhães"
+              },
+              {
+                "name": "Pesquisador",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*99b900b8-66ea-4c62-bb83-e31db6d00287",
+                "type": "select",
+                "value": "Caio Pariz"
+              },
+              {
+                "name": "Setor",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*0ae9f97b-c8da-41b5-9c34-9513fa349c26",
+                "type": "select",
+                "value": "Serviços Corporativos"
+              },
+              {
+                "name": "Parcela Kick-off - Valor",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*8ae9d825-529c-4189-9038-7f2ed5895ed2",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Parcela Kick-off - data prevista",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*43aca291-6ab8-44e4-9d6d-8a7a240ce325",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Parcela Kick-off - data realizada",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*3a2b3321-6375-4f59-b8bb-adf79aa54233",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Parcela Shortlist - Valor",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*cb5cd110-0249-48d8-87ea-e93a20e7ccd2",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Parcela Shortlist - data prevista",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*0c0b0b05-b085-4f27-b98a-a111b3b4bd4d",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Parcela Shortlist - data realizada",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*9ecf2096-9972-4cb2-8cfb-70773dd55156",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Parcela Fechamento - Valor",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*0846d196-d526-4af5-976e-b8b83abd28e9",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Parcela Fechamento - data prevista",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*839bb49a-2b56-4691-9482-402fc4642a4d",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Parcela Fechamento - data realizada",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*d1e8bc3d-304b-42a1-b797-18d374cef70e",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Data do Kick-off",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*b914a35f-e14f-4eac-9089-a0297f9d3221",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Data de início das buscas",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*4e52a107-4d7f-4fb1-8c01-24dba54a54b1",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Data de início das abordagens",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*a77ae531-e64f-483d-a553-6775c0c49f7d",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Data de início das entrevistas",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*95a8b438-6f3d-4b60-86a6-1b9878c10d9a",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Data de entrega do FUP",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*344ee645-3f97-4733-8f11-f99d92523502",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "FUP entregue no prazo",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*497233c7-623e-4921-81a2-7289f4923bae",
+                "type": "select",
+                "value": "-"
+              },
+              {
+                "name": "Data de entrega da SL",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*9791d5d1-138b-4352-91c6-ce6b17342050",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Fechamento de job",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*8ba3f68b-19fa-490b-b966-d90bab7e8215",
+                "type": "select",
+                "value": "-"
+              },
+              {
+                "name": "Status Feedbacks",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*c7b0167e-baa3-45fb-9ec7-97209c8eacb1",
+                "type": "select",
+                "value": "Não Realizado"
+              },
+              {
+                "name": "Palavras-chave para busca de candidatos:",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*0ec7579c-bcec-403c-8d02-9ea8b50513ec",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Cargos similares:",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*798bcedc-446b-48bd-bc4d-623c36a47db7",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Áreas da Empresa onde pode estar:",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*056f5343-d30a-4b12-b037-b608ee88c125",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Setores que fazem sentido buscar:",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*e6742f40-df8d-4844-a699-1c857f9b1175",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Cidades/estados para busca:",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*644ebd4a-905e-43d1-a57d-92ea7252805f",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Formação de primeira linha?",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*5c6ee161-ec77-49d0-a66a-e917e145faea",
+                "type": "select",
+                "value": "Sim"
+              },
+              {
+                "name": "Faixa etária esperada:",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*8a5f32da-75e0-4665-a403-eecae0d5f6e6",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Empresas para busca:",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*5ade0d28-6f92-49bf-a3c8-857689174ac3",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Empresas para mapeamento de estrutura:",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*a5e0c77a-4578-4bbd-be5a-e6e0405b1769",
+                "type": "text",
+                "value": "-"
+              },
+              {
+                "name": "Apresentação do cliente e desafios da posição:",
+                "customFieldId": "job*6971e325-6fbc-41fb-ac40-69256c858637*baa4f6b3-0ef7-4fa6-a70e-c39faebbb1c9",
+                "type": "text",
+                "value": "-"
+              }
+            ],
+            "stages": [
+              {
+                "phase": {
+                  "createdAt": "2024-02-14T21:12:00.057Z",
+                  "name": "Listagem",
+                  "id": "01HPMQCM9SD9T4ENZ31GTVTFV9",
+                  "userName": "Helena Magalhães",
+                  "type": "listing",
+                  "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                  "order": 1,
+                  "updatedAt": "2024-02-14T21:12:00.057Z"
+                },
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Identificados",
+                "id": "1",
+                "userName": "Helena Magalhães",
+                "type": "listed",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "updatedAt": "2024-02-14T21:12:00.057Z",
+                "order": 1
+              },
+              {
+                "phase": {
+                  "createdAt": "2024-02-14T21:12:00.057Z",
+                  "name": "Listagem",
+                  "id": "01HPMQCM9ZC1XY1X037X52QKYC",
+                  "userName": "Helena Magalhães",
+                  "type": "listing",
+                  "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                  "order": 1,
+                  "updatedAt": "2024-02-14T21:12:00.057Z"
+                },
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Com contato",
+                "id": "2",
+                "userName": "Helena Magalhães",
+                "type": "listed",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "updatedAt": "2024-02-14T21:12:00.057Z",
+                "order": 2
+              },
+              {
+                "phase": {
+                  "createdAt": "2024-02-14T21:12:00.057Z",
+                  "name": "Abordagem",
+                  "id": "01HPMQCMA01CAK5GH9K9Z1F5R1",
+                  "userName": "Helena Magalhães",
+                  "type": "approach",
+                  "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                  "order": 2,
+                  "updatedAt": "2024-02-14T21:12:00.057Z"
+                },
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Abordados",
+                "id": "3",
+                "userName": "Helena Magalhães",
+                "type": "inApproach",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "updatedAt": "2024-02-14T21:12:00.057Z",
+                "order": 3
+              },
+              {
+                "phase": {
+                  "createdAt": "2024-02-14T21:12:00.057Z",
+                  "name": "Candidatura",
+                  "id": "01HPMQCMA2A9SD4ZSSE34TFKCH",
+                  "userName": "Helena Magalhães",
+                  "type": "application",
+                  "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                  "order": 4,
+                  "updatedAt": "2024-02-14T21:12:00.057Z"
+                },
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Potencial Ett",
+                "id": "4",
+                "userName": "Helena Magalhães",
+                "type": "inApproach",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "updatedAt": "2024-02-14T21:12:00.057Z",
+                "order": 4
+              },
+              {
+                "phase": {
+                  "createdAt": "2024-02-14T21:12:00.057Z",
+                  "name": "Fit Cultural",
+                  "id": "01HPMQCMA3BPG4WX692YGVM68H",
+                  "userName": "Helena Magalhães",
+                  "type": "culturalFit",
+                  "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                  "order": 5,
+                  "updatedAt": "2024-02-14T21:12:00.057Z"
+                },
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "DISC/IAC",
+                "id": "5",
+                "userName": "Helena Magalhães",
+                "type": "culturalInterview",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "updatedAt": "2024-02-14T21:12:00.057Z",
+                "order": 5
+              },
+              {
+                "phase": {
+                  "createdAt": "2024-02-14T21:12:00.057Z",
+                  "name": "Fit Cultural",
+                  "id": "01HPMQCMA5B1PAQVHP9PCXY1XQ",
+                  "userName": "Helena Magalhães",
+                  "type": "culturalFit",
+                  "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                  "order": 5,
+                  "updatedAt": "2024-02-14T21:12:00.057Z"
+                },
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Entrevista People",
+                "id": "6",
+                "userName": "Helena Magalhães",
+                "type": "culturalInterview",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "updatedAt": "2024-02-14T21:12:00.057Z",
+                "order": 6
+              },
+              {
+                "phase": {
+                  "createdAt": "2024-02-14T21:12:00.057Z",
+                  "name": "Fit Técnico",
+                  "id": "01HPMQCMA8BJ1EAERGEGT678NE",
+                  "userName": "Helena Magalhães",
+                  "type": "technicalFit",
+                  "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                  "order": 6,
+                  "updatedAt": "2024-02-14T21:12:00.057Z"
+                },
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Short List",
+                "id": "7",
+                "userName": "Helena Magalhães",
+                "type": "technicalInterview",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "updatedAt": "2024-02-14T21:12:00.057Z",
+                "order": 7
+              },
+              {
+                "phase": {
+                  "createdAt": "2024-02-14T21:12:00.057Z",
+                  "name": "Fit Técnico",
+                  "id": "01HPMQCMACJZZ4R3DMZASN3M2N",
+                  "userName": "Helena Magalhães",
+                  "type": "technicalFit",
+                  "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                  "order": 6,
+                  "updatedAt": "2024-02-14T21:12:00.057Z"
+                },
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Entrevista com Cliente",
+                "id": "8",
+                "userName": "Helena Magalhães",
+                "type": "technicalInterview",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "updatedAt": "2024-02-14T21:12:00.057Z",
+                "order": 8
+              },
+              {
+                "phase": {
+                  "createdAt": "2024-02-14T21:12:00.057Z",
+                  "name": "Oferta",
+                  "id": "01HPMQCMAESY2HPKRAV0R5T9K9",
+                  "userName": "Helena Magalhães",
+                  "type": "offer",
+                  "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                  "order": 7,
+                  "updatedAt": "2024-02-14T21:12:00.057Z"
+                },
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Referências",
+                "id": "9",
+                "userName": "Helena Magalhães",
+                "type": "inOffer",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "updatedAt": "2024-02-14T21:12:00.057Z",
+                "order": 9
+              },
+              {
+                "phase": {
+                  "createdAt": "2024-02-14T21:12:00.057Z",
+                  "name": "Oferta",
+                  "id": "01HPMQCMAGW9K119YNWKCB9EDF",
+                  "userName": "Helena Magalhães",
+                  "type": "offer",
+                  "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                  "order": 7,
+                  "updatedAt": "2024-02-14T21:12:00.057Z"
+                },
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Oferta",
+                "id": "10",
+                "userName": "Helena Magalhães",
+                "type": "inOffer",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "updatedAt": "2024-02-14T21:12:00.057Z",
+                "order": 10
+              },
+              {
+                "phase": {
+                  "createdAt": "2024-02-14T21:12:00.057Z",
+                  "name": "Contratação",
+                  "id": "01HPMQCMAJ4YKKPX4K1AFA50NS",
+                  "userName": "Helena Magalhães",
+                  "type": "hiring",
+                  "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                  "order": 8,
+                  "updatedAt": "2024-02-14T21:12:00.057Z"
+                },
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Contratação",
+                "id": "11",
+                "userName": "Helena Magalhães",
+                "type": "hired",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "updatedAt": "2024-02-14T21:12:00.057Z",
+                "order": 11
+              }
+            ],
+            "isTalentPool": true,
+            "locationCountry": "BR",
+            "resumeAnalyzer": {
+              "active": false,
+              "description": "<p>[T&iacute;tulo da Posi&ccedil;&atilde;o]</p>\n<p>Local de trabalho: [Insira o local da empresa ou se &eacute; uma posi&ccedil;&atilde;o remota]</p>\n<p>Contato: [Forne&ccedil;a informa&ccedil;&otilde;es de contato para d&uacute;vidas ou esclarecimentos.]</p>\n<p>E-mail: [Forne&ccedil;a informa&ccedil;&otilde;es de contato]</p>",
+              "statements": []
+            },
+            "status": "open",
+            "tenantClientId": "f30e0a11-e614-4362-ac95-93551e02d201",
+            "managerId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+            "activeTalents": 122,
+            "requisitions": [],
+            "housingAssistance": false,
+            "locationRequired": false,
+            "name": "BD People ",
+            "hired": 0,
+            "linkedinSettings": {
+              "skills": []
+            },
+            "offLimits": [],
+            "talentsCount": 177,
+            "tenantClient": {
+              "name": "PEOPLE ORIENTED CONSULTORIA",
+              "logo": "https://files.inhire.app/tenant-public-files/peopleoriented/LogoMarca*6b5e6aaf-4acf-49f2-8f9a-a1fe4ef8de56.png",
+              "id": "f30e0a11-e614-4362-ac95-93551e02d201"
+            },
+            "seniority": "senior",
+            "evaluatorIds": [],
+            "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+            "acceptedSeniority": [],
+            "id": "110cafa9-71a1-43b3-b3d3-02315a6cab75",
+            "tags": [
+              {
+                "createdAt": "2025-01-16T12:29:06.669Z",
+                "color": "#4ac4d4",
+                "name": "1-shortlist",
+                "id": "01JHQHDD7D3B307P9YMKQ3ZHWN",
+                "userName": "Helena Magalhães",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "updatedAt": "2025-01-16T12:29:06.669Z"
+              },
+              {
+                "createdAt": "2025-01-16T12:29:06.678Z",
+                "color": "#55c3f4",
+                "name": "2-shortlist",
+                "id": "01JHQHDD7PJZ95N3BGGC7DGKZV",
+                "userName": "Helena Magalhães",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "updatedAt": "2025-01-16T12:29:06.678Z"
+              },
+              {
+                "createdAt": "2025-01-16T12:29:06.678Z",
+                "color": "#ffee59",
+                "name": "3-shortlist",
+                "id": "01JHQHDD7P2QS20302MDE3MBJH",
+                "userName": "Helena Magalhães",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "updatedAt": "2025-01-16T12:29:06.678Z"
+              },
+              {
+                "createdAt": "2025-01-16T12:29:06.678Z",
+                "color": "#f46055",
+                "name": "4-shortlist",
+                "id": "01JHQHDD7PQHEH5WFE1H3CEBD3",
+                "userName": "Helena Magalhães",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "updatedAt": "2025-01-16T12:29:06.678Z"
+              },
+              {
+                "createdAt": "2025-01-16T12:29:06.678Z",
+                "color": "#f46055",
+                "name": "5-shortlist",
+                "id": "01JHQHDD7PMTZKWFQW28C1PTJT",
+                "userName": "Helena Magalhães",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "updatedAt": "2025-01-16T12:29:06.678Z"
+              },
+              {
+                "createdAt": "2025-01-16T20:49:05.291Z",
+                "color": "#f46055",
+                "name": "Consultor",
+                "id": "01JHRE0WRBGV66R79KHPWA4ZQG",
+                "userName": "Caio Gomes Pariz",
+                "userId": "c2f0b3b1-3152-4279-832e-28288074c52d",
+                "updatedAt": "2025-01-16T20:49:05.291Z"
+              },
+              {
+                "createdAt": "2025-01-22T14:31:50.762Z",
+                "color": "#ffee59",
+                "name": "São Paulo",
+                "id": "01JJ76TEQAYFBW1HFDX81VQ20C",
+                "userName": "Caio Gomes Pariz",
+                "userId": "c2f0b3b1-3152-4279-832e-28288074c52d",
+                "updatedAt": "2025-01-22T14:31:50.762Z"
+              },
+              {
+                "createdAt": "2025-03-25T17:53:18.517Z",
+                "color": "#f46055",
+                "name": "Associate",
+                "id": "01JQ76ZX5NSGJ93J5M7YRXDEXK",
+                "userName": "Caio Gomes Pariz",
+                "userId": "c2f0b3b1-3152-4279-832e-28288074c52d",
+                "updatedAt": "2025-03-25T17:53:18.517Z"
+              }
+            ],
+            "locationState": null,
+            "pendencies": {
+              "diversity": {
+                "userName": "Helena Magalhães",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "status": "pending",
+                "updatedAt": "2025-01-16T12:29:04.007Z"
+              },
+              "positions": {
+                "userName": "Caio Gomes Pariz",
+                "userId": "c2f0b3b1-3152-4279-832e-28288074c52d",
+                "status": "seen",
+                "updatedAt": "2025-01-21T21:08:54.637Z"
+              },
+              "subscription-form": {
+                "userName": "inHire",
+                "userId": null,
+                "status": "done",
+                "updatedAt": "2025-01-16T12:29:10.246Z"
+              },
+              "workflows": {
+                "userName": "Helena Magalhães",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "status": "pending",
+                "updatedAt": "2025-01-16T12:29:04.007Z"
+              },
+              "talent-subscription-email": {
+                "userName": "Helena Magalhães",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "status": "done",
+                "updatedAt": "2025-01-16T12:29:04.007Z"
+              },
+              "test-form": {
+                "userName": "Helena Magalhães",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "status": "pending",
+                "updatedAt": "2025-01-16T12:29:04.007Z"
+              }
+            },
+            "slaDaysGoal": 30,
+            "userName": "Helena Magalhães",
+            "createdAt": "2025-01-16T12:29:04.008Z",
+            "talentSuggestions": false,
+            "prospects": 0,
+            "diversity": {
+              "createdAt": "2025-01-16T12:29:06.708Z",
+              "questions": [
+                {
+                  "question": "Você pertence a um dos grupos abaixo?",
+                  "answerType": "multipleChoice",
+                  "active": true,
+                  "description": "Esta pergunta engloba diversos grupos que historicamente sofreram discriminãção e exclusão, como mulheres, pessoas negras, pessoas LBGTI+, pessoas com deficiência, entre outros.",
+                  "title": "Grupos de diversidade",
+                  "userName": "Inhire",
+                  "userId": null,
+                  "required": true,
+                  "diversityGroup": "diversityGroup",
+                  "createdAt": "2023-11-30T19:17:34.999Z",
+                  "id": "diversityGroup",
+                  "answerOptions": [
+                    {
+                      "title": "Pessoa preta",
+                      "order": 1,
+                      "id": "023e8cab-6d33-4d34-a70f-430e59251a0f"
+                    },
+                    {
+                      "title": "Pessoa parda",
+                      "order": 2,
+                      "id": "f13f0f03-ba5c-4eb5-adfa-b52d0538a768"
+                    },
+                    {
+                      "title": "Indígena",
+                      "order": 3,
+                      "id": "93fee473-d9b5-4318-949c-594c20b9245d"
+                    },
+                    {
+                      "title": "Mulher",
+                      "order": 4,
+                      "id": "4cadb691-1455-4e0a-931d-1b10d9a36fc1"
+                    },
+                    {
+                      "title": "Pessoa com Deficiência",
+                      "order": 5,
+                      "id": "2ff1ba4e-c61d-4b2f-9e7a-214bfe66a35f"
+                    },
+                    {
+                      "title": "LGBTI+",
+                      "order": 6,
+                      "id": "0c8344bc-fce9-4793-bcc7-4e02203f5319"
+                    },
+                    {
+                      "title": "Não pertenço a nenhum dos grupos",
+                      "order": 7,
+                      "id": "75c11d4d-4171-444b-80ec-3266bdf93144"
+                    },
+                    {
+                      "title": "Prefiro não responder",
+                      "order": 8,
+                      "id": "298f3f85-a75c-4097-bf3c-ee6b024e8069"
+                    }
+                  ],
+                  "order": 1,
+                  "updatedAt": "2023-11-30T19:17:34.999Z"
+                },
+                {
+                  "question": "Você necessita de algum recurso específico de acessibilidade ou precisa de alguma adaptação para que o momento seja mais confortável para você?",
+                  "answerType": "longText",
+                  "active": true,
+                  "title": "Pessoas com deficiência - Auxílio",
+                  "userName": "Inhire",
+                  "userId": null,
+                  "required": true,
+                  "diversityGroup": "peopleWithDisability",
+                  "createdAt": "2023-11-30T19:17:34.999Z",
+                  "subTitle": "Essa pergunta será visível somente se o talento responder sim na primeira pergunta de PcD",
+                  "id": "peopleWithDisabilityAID",
+                  "placeholder": "Você precisa de alguma acessibilidade para tornarmos o processo mais inclusivo para você? Escreva aqui...",
+                  "isSubQuestionOf": "peopleWithDisability",
+                  "order": 6,
+                  "updatedAt": "2023-11-30T19:17:34.999Z"
+                },
+                {
+                  "question": "Por favor, insira o número do CID informado em seu laudo médico.",
+                  "answerType": "shortText",
+                  "active": true,
+                  "title": "Pessoas com deficiência - CID",
+                  "userName": "Inhire",
+                  "userId": null,
+                  "required": true,
+                  "diversityGroup": "peopleWithDisability",
+                  "createdAt": "2023-11-30T19:17:34.999Z",
+                  "subTitle": "Essa pergunta será visível somente se o talento responder sim na primeira pergunta de PcD",
+                  "id": "peopleWithDisabilityCID",
+                  "placeholder": "Informe aqui o número do CID...",
+                  "isSubQuestionOf": "peopleWithDisability",
+                  "order": 7,
+                  "updatedAt": "2023-11-30T19:17:34.999Z"
+                },
+                {
+                  "question": "Qual é a sua identidade de gênero?",
+                  "answerType": "singleChoice",
+                  "active": false,
+                  "description": "A identidade de gênero refere-se à forma como uma pessoa se identifica em relação ao gênero masculino, feminino, ambos ou nenhum dos gêneros.",
+                  "title": "Identidade de gênero",
+                  "userName": "Inhire",
+                  "userId": null,
+                  "required": true,
+                  "diversityGroup": "genderIdentity",
+                  "createdAt": "2023-11-30T19:17:34.999Z",
+                  "id": "genderIdentity",
+                  "placeholder": "Selecione uma opção que te identifique",
+                  "answerOptions": [
+                    {
+                      "description": "Homem Cisgênero (ou seja, você se identifica com o sexo que lhe foi designado ao nascer)",
+                      "id": "b5f9c1d5-b3bb-4ca3-82a5-a174120edc3e",
+                      "title": "Homem Cisgênero",
+                      "order": 1
+                    },
+                    {
+                      "description": "Mulher Cisgênero (ou seja, você se identifica com o sexo que lhe foi designada ao nascer)",
+                      "id": "e5823483-d923-4395-9dfd-dea9fac11585",
+                      "title": "Mulher Cisgênero",
+                      "order": 2
+                    },
+                    {
+                      "description": "Homem Transgênero (ou seja, você possui outra identidade de gênero, diferente da que lhe foi designado ao nascer)",
+                      "id": "72ec8c3b-b1ee-49a8-acd4-d8f865782f15",
+                      "title": "Homem Transgênero",
+                      "order": 3
+                    },
+                    {
+                      "description": "Mulher Transgênero (ou seja, você possui outra identidade de gênero, diferente da que lhe foi designada ao nascer)",
+                      "id": "1f133ae1-8b56-41c8-ac77-88fc7a6754e1",
+                      "title": "Mulher Transgênero",
+                      "order": 4
+                    },
+                    {
+                      "description": "Não binário (ou seja, não definem sua identidade dentro do sistema binário homem/mulher)",
+                      "id": "0b468ba3-4858-4af1-b215-6bfcaf40f8b3",
+                      "title": "Não binário",
+                      "order": 5
+                    },
+                    {
+                      "description": "Agênero (não se identifica com nenhum dos gêneros e nem com sua concepção)",
+                      "id": "acaadc01-b8ec-473e-9c9f-4320d8f127d7",
+                      "title": "Agênero",
+                      "order": 6
+                    },
+                    {
+                      "description": "Gênero fluido (ou seja, você se identifica com gêneros variáveis ao longo do tempo)",
+                      "id": "c19037a6-c51a-40fb-bd96-d3008114ddd3",
+                      "title": "Gênero fluido",
+                      "order": 7
+                    },
+                    {
+                      "title": "Prefiro não responder",
+                      "order": 8,
+                      "id": "81c2803f-7349-4c85-ab83-c8fbb98c2f5f"
+                    }
+                  ],
+                  "order": 2,
+                  "updatedAt": "2023-11-30T19:17:34.999Z"
+                },
+                {
+                  "question": "Qual é a sua orientação sexual?",
+                  "answerType": "singleChoice",
+                  "active": false,
+                  "description": "A orientação sexual refere-se à atração emocional, romântica ou sexual que uma pessoa apresenta em relação a outras pessoas. Podendo ser do mesmo gênero, de gênero diferente, de ambos os gêneros ou mais de um gênero.",
+                  "title": "Orientação sexual",
+                  "userName": "Inhire",
+                  "userId": null,
+                  "required": true,
+                  "diversityGroup": "sexualOrientation",
+                  "createdAt": "2023-11-30T19:17:34.999Z",
+                  "id": "sexualOrientation",
+                  "placeholder": "Selecione uma opção que te identifique",
+                  "answerOptions": [
+                    {
+                      "description": "Homossexual (atração sexual e/ou romântica por pessoas do mesmo gênero)",
+                      "id": "8904c64c-8de3-48c0-ad37-7ba9f96bae6c",
+                      "title": "Homossexual",
+                      "order": 1
+                    },
+                    {
+                      "description": "Heterossexual (atração sexual e/ou romântica por pessoas do gênero oposto)",
+                      "id": "778871ed-f039-446c-a395-c72f32658c65",
+                      "title": "Heterossexual",
+                      "order": 2
+                    },
+                    {
+                      "description": "Bissexual (atração sexual e romântica por mais de um gênero)",
+                      "id": "14c26f36-70e4-4814-9df0-edcf7664e566",
+                      "title": "Bissexual",
+                      "order": 3
+                    },
+                    {
+                      "description": "Pansexual (atração sexual ou romântica que não depende de gênero)",
+                      "id": "b0c8c6f6-80c8-4054-8578-0e85fc1448c4",
+                      "title": "Pansexual",
+                      "order": 4
+                    },
+                    {
+                      "description": "Assexual (falta de atração sexual por outra pessoa, independentemente de gênero, mas podem ter sentimentos românticos)",
+                      "id": "85733254-b110-4c66-9a9b-51b8c8508838",
+                      "title": "Assexual",
+                      "order": 5
+                    },
+                    {
+                      "title": "Outro",
+                      "order": 6,
+                      "id": "7160dfe4-b25f-4797-a3e1-61fed6dbfa32"
+                    },
+                    {
+                      "title": "Prefiro não responder",
+                      "order": 7,
+                      "id": "ae685f93-0908-4b87-9918-03df88fcf11b"
+                    }
+                  ],
+                  "order": 3,
+                  "updatedAt": "2023-11-30T19:17:34.999Z"
+                },
+                {
+                  "question": "Qual é a sua cor ou raça?",
+                  "answerType": "singleChoice",
+                  "active": false,
+                  "description": "A cor ou raça refere-se a como a pessoa se enxerga com base em sua aparência física e características culturais, históricas e sociais.",
+                  "title": "Cor ou raça",
+                  "userName": "Inhire",
+                  "userId": null,
+                  "required": true,
+                  "diversityGroup": "colourAndEthnicity",
+                  "createdAt": "2023-11-30T19:17:34.999Z",
+                  "id": "colourAndEthnicity",
+                  "placeholder": "Selecione uma opção que te identifique",
+                  "answerOptions": [
+                    {
+                      "title": "Amarela",
+                      "order": 1,
+                      "id": "d68d61dc-dfab-4c27-8abe-8292c4bc64ed"
+                    },
+                    {
+                      "title": "Indígena",
+                      "order": 2,
+                      "id": "77a5b7ed-0b3a-46dc-91af-cd66d630afee"
+                    },
+                    {
+                      "title": "Branca",
+                      "order": 3,
+                      "id": "9713c7d4-827b-4b66-b3b2-1c60ade464dd"
+                    },
+                    {
+                      "title": "Parda",
+                      "order": 4,
+                      "id": "c657a1ae-fd43-469d-af95-a1997788e6f1"
+                    },
+                    {
+                      "title": "Preta",
+                      "order": 5,
+                      "id": "7284faab-68be-4780-8713-120a95f75211"
+                    },
+                    {
+                      "title": "Prefiro não responder",
+                      "order": 7,
+                      "id": "36bacc4f-c8f5-4e2d-86dd-e61169c30632"
+                    }
+                  ],
+                  "order": 4,
+                  "updatedAt": "2023-11-30T19:17:34.999Z"
+                },
+                {
+                  "question": "Deseja se candidatar para a vaga como pessoa com deficiência?",
+                  "answerType": "singleChoice",
+                  "active": false,
+                  "description": "As pessoas com deficiência são aquelas que possuem limitações físicas, sensoriais ou intelectuais que afetam suas atividades diárias.",
+                  "title": "Pessoas com deficiência",
+                  "userName": "Inhire",
+                  "userId": null,
+                  "required": true,
+                  "diversityGroup": "peopleWithDisability",
+                  "createdAt": "2023-11-30T19:17:34.999Z",
+                  "id": "peopleWithDisability",
+                  "placeholder": "Selecione uma das opções",
+                  "answerOptions": [
+                    {
+                      "subQuestionIds": [
+                        "peopleWithDisabilityAID",
+                        "peopleWithDisabilityCID",
+                        "peopleWithDisabilityMedicalReport"
+                      ],
+                      "id": "d038f162-721c-488c-8c0b-4693211671d0",
+                      "title": "Sim",
+                      "subTitle": "Se o talento responder sim, ele irá para as próximas perguntas caso elas estejam habilitadas.",
+                      "order": 1
+                    },
+                    {
+                      "title": "Não",
+                      "order": 2,
+                      "id": "d8c4bdab-640b-495b-96f0-881af43ebabc"
+                    }
+                  ],
+                  "order": 5,
+                  "updatedAt": "2023-11-30T19:17:34.999Z"
+                },
+                {
+                  "question": "Por favor, anexe seu laudo médico aqui.",
+                  "answerType": "fileUpload",
+                  "active": false,
+                  "description": "A apresentação do laudo médico para Pessoas com Deficiência é um requisito importante para garantir a equidade nos processos seletivos direcionados a esse grupo, assegurando a devida conformidade e a participação restrita à Pessoas com Deficiência.",
+                  "title": "Pessoas com deficiência - Laudo médico",
+                  "userName": "Inhire",
+                  "userId": null,
+                  "required": false,
+                  "diversityGroup": "peopleWithDisability",
+                  "createdAt": "2024-03-01T13:40:20.786Z",
+                  "subTitle": "Essa pergunta será visível somente se o talento responder sim na primeira pergunta de PcD",
+                  "id": "peopleWithDisabilityMedicalReport",
+                  "isSubQuestionOf": "peopleWithDisability",
+                  "order": 8,
+                  "updatedAt": "2024-03-01T13:40:20.786Z"
+                }
+              ],
+              "active": true,
+              "privacyLink": "https://docs.google.com/document/d/10hS81K_Ghz0qbb37YXSRcqGYSuLszIq3KPWzVJDQGs4/preview",
+              "userName": "Helena Magalhães",
+              "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+              "introduction": "<p>Aqui na People Oriented Consultoria valorizamos muito a diversidade e acreditamos fortemente no seu poder de impulsionar ambientes mais criativos, colaborativos e acolhedores. Por isso, gostar&iacute;amos de saber um pouco mais sobre voc&ecirc;! Mas, n&atilde;o precisa ter receio, pois essas informa&ccedil;&otilde;es s&atilde;o confidenciais! O objetivo &eacute; que possamos ter mais intencionalidade ao longo de todo o processo seletivo, proporcionando uma jornada cuidadosa e positiva para todas as pessoas candidatas. Vamos nessa?</p>",
+              "updatedAt": "2025-01-16T12:29:06.708Z"
+            },
+            "statusHistory": [
+              {
+                "createdAt": "2025-01-16T12:29:04.008Z",
+                "status": "open"
+              }
+            ],
+            "recruiterId": "c2f0b3b1-3152-4279-832e-28288074c52d",
+            "area": "sales",
+            "updatedAt": "2025-06-09T17:10:19.720Z",
+            "duplicateFrom": {
+              "name": "@@Modelo para duplicar",
+              "id": "ab1f7522-7466-4480-abe4-83c6e021761d"
+            },
+            "description": "",
+            "duplication": {
+              "diversity": {
+                "status": "success"
+              },
+              "testForms": {
+                "metadata": [
+                  {
+                    "idOrigin": "lextG6CF",
+                    "id": "krbn5Bdv"
+                  },
+                  {
+                    "idOrigin": "sG06otbC",
+                    "id": "pFlDVXSe"
+                  }
+                ],
+                "status": "success"
+              },
+              "workflows": {
+                "status": "success"
+              },
+              "scorecard": {
+                "status": "success"
+              },
+              "subscriptionForms": {
+                "metadata": [
+                  {
+                    "idOrigin": "lextG6CF",
+                    "id": "krbn5Bdv"
+                  },
+                  {
+                    "idOrigin": "sG06otbC",
+                    "id": "pFlDVXSe"
+                  }
+                ],
+                "status": "success"
+              },
+              "tags": {
+                "status": "success"
+              }
+            },
+            "talent": {
+              "stage": {
+                "phase": {
+                  "createdAt": "2024-02-14T21:12:00.057Z",
+                  "name": "Listagem",
+                  "id": "01HPMQCM9ZC1XY1X037X52QKYC",
+                  "userName": "Helena Magalhães",
+                  "type": "listing",
+                  "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                  "order": 1,
+                  "updatedAt": "2024-02-14T21:12:00.057Z"
+                },
+                "createdAt": "2024-02-14T21:12:00.057Z",
+                "name": "Com contato",
+                "id": "2",
+                "userName": "Helena Magalhães",
+                "type": "listed",
+                "userId": "d3b0c83e-72eb-4583-bc4d-e9844b6f63a1",
+                "updatedAt": "2024-02-14T21:12:00.057Z",
+                "order": 2
+              },
+              "status": "active",
+              "userName": "Patrick Gomes Siqueira",
+              "createdAt": "2025-06-09T17:10:19.510Z",
+              "source": "manual",
+              "updatedAt": "2025-07-31T06:22:54.226Z",
+              "userId": "650dfb7e-db35-4cf5-adbf-bbd2a5194267",
+              "id": "110cafa9-71a1-43b3-b3d3-02315a6cab75*fce68742-fb31-40ff-9fb9-e9919a449f68",
+              "talentId": "fce68742-fb31-40ff-9fb9-e9919a449f68",
+              "tags": []
+            }
+          }
+        ],
+        "userId": "650dfb7e-db35-4cf5-adbf-bbd2a5194267",
+        "userName": "Patrick Gomes Siqueira"
+      },
+      "isViewedByCurrentUser": false
+    }
+  }
+}

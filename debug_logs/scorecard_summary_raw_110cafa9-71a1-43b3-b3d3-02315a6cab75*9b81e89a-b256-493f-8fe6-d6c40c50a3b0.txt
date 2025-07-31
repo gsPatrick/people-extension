@@ -1,0 +1,214 @@
+[
+  {
+    "evaluationsFeedbacks": [
+      {
+        "comment": "teste",
+        "proceed": "NO_DECISION",
+        "scorecardInterviewId": "9347cb03-64da-4f6b-8acb-5c96f722c77f",
+        "scorecardInterviewName": "Ficha de Abordagem - Nome da Posição",
+        "annotations": "teste"
+      }
+    ],
+    "skillComments": [
+      {
+        "name": "colocar critérios colocados na criação da vaga (com conhecimentos específicos se precisar)",
+        "comments": []
+      },
+      {
+        "name": "Fluência de idiomas  (se necessário)",
+        "comments": []
+      },
+      {
+        "name": "Critério referente a formação acadêmica (caso necessário) ",
+        "comments": []
+      },
+      {
+        "name": "Colocar + 5 das competências",
+        "comments": []
+      },
+      {
+        "name": "Ter experiência consistente em empresa de porte e natureza (investida de fundo, multinacional, familiar...) similar a do nosso cliente",
+        "comments": []
+      },
+      {
+        "name": "No teste IAC, o candidato apresentou match com a empresa em todas as 6 dimensões?",
+        "comments": []
+      },
+      {
+        "name": "Sem gaps, não jumper, cargos de liderança antes dos 30, formação e Aprendizado contínuo.",
+        "comments": []
+      },
+      {
+        "name": "Tempo de experiência em posições de liderança (colocar qtde)",
+        "comments": []
+      },
+      {
+        "name": "Budget sob gestão (colocar qtde)",
+        "comments": []
+      },
+      {
+        "name": "Posição no organograma adequada a posição ",
+        "comments": []
+      },
+      {
+        "name": "Tamanho do escopo da posição é similar ao cliente",
+        "comments": []
+      },
+      {
+        "name": "Incremento de remuneração entre 15% e 30%,  Oportunidade Carreira melhor, Interesse do candidato.",
+        "comments": []
+      },
+      {
+        "name": "Colocar qual o desafio da posição (avaliar se candidato já resolveu problema similar)",
+        "comments": []
+      },
+      {
+        "name": "Colocar entregas esperadas em 90/180 dias (avaliar capacidade do candidato de realizar as entregas)",
+        "comments": []
+      }
+    ],
+    "skillsScore": [
+      {
+        "name": "Match Técnico",
+        "skills": [
+          {
+            "name": "1 ano de experiência Comercial em R&S"
+          },
+          {
+            "name": "Inglês Fluente"
+          },
+          {
+            "name": "Experiência como Recrutador por pelo menos 3 anos"
+          },
+          {
+            "name": "Case de Sucesso trazendo pelo menos 2 clientes"
+          },
+          {
+            "name": "Pelo menos 3 anos de experiência Comercial Hunter"
+          },
+          {
+            "name": "colocar critérios colocados na criação da vaga (com conhecimentos específicos se precisar)",
+            "score": 5
+          },
+          {
+            "name": "Fluência de idiomas  (se necessário)",
+            "score": 5
+          },
+          {
+            "name": "Critério referente a formação acadêmica (caso necessário) ",
+            "score": 5
+          }
+        ]
+      },
+      {
+        "name": "Match Comportamental",
+        "skills": [
+          {
+            "name": "habilidade interpessoal"
+          },
+          {
+            "name": "Senso de Urgência "
+          },
+          {
+            "name": "Foco em Resultados"
+          },
+          {
+            "name": "Capacidade de Organização"
+          },
+          {
+            "name": "capacidade analítica"
+          },
+          {
+            "name": "Colocar + 5 das competências",
+            "score": 5
+          }
+        ]
+      },
+      {
+        "name": "Match Cultural",
+        "skills": [
+          {
+            "name": "2 anos de experiência em Consultoria de Recrutamento Média e Alta Gestão"
+          },
+          {
+            "name": "Ter experiência consistente em empresa de porte e natureza (investida de fundo, multinacional, familiar...) similar a do nosso cliente",
+            "score": 5
+          },
+          {
+            "name": "No teste IAC, o candidato apresentou match com a empresa em todas as 6 dimensões?",
+            "score": 5
+          }
+        ]
+      },
+      {
+        "name": "Match Perfil UAU",
+        "skills": [
+          {
+            "name": "Sem gaps, não jumper, formação de primeira linha."
+          },
+          {
+            "name": "Sem gaps, não jumper, cargos de liderança antes dos 30, formação e Aprendizado contínuo.",
+            "score": 5
+          }
+        ]
+      },
+      {
+        "name": "Match Senioridade",
+        "skills": [
+          {
+            "name": "Volume de Faturamento (pelo menos 350k aa)"
+          },
+          {
+            "name": "Pelo menos 2 anos como Consultor"
+          },
+          {
+            "name": "Tempo de experiência em posições de liderança (colocar qtde)",
+            "score": 5
+          },
+          {
+            "name": "Budget sob gestão (colocar qtde)",
+            "score": 5
+          },
+          {
+            "name": "Posição no organograma adequada a posição ",
+            "score": 5
+          },
+          {
+            "name": "Tamanho do escopo da posição é similar ao cliente",
+            "score": 5
+          }
+        ]
+      },
+      {
+        "name": "Match Atratividade",
+        "skills": [
+          {
+            "name": "Incremento de remuneração entre 15% e 30%,  Oportunidade Carreira melhor, Interesse do candidato.",
+            "score": 5
+          }
+        ]
+      },
+      {
+        "name": "Match Desafio",
+        "skills": [
+          {
+            "name": "Vivência em abertura de Mercado dentro de Consultoria"
+          },
+          {
+            "name": "Incremento significativo da carteira de clientes"
+          },
+          {
+            "name": "Colocar qual o desafio da posição (avaliar se candidato já resolveu problema similar)",
+            "score": 5
+          },
+          {
+            "name": "Colocar entregas esperadas em 90/180 dias (avaliar capacidade do candidato de realizar as entregas)",
+            "score": 5
+          }
+        ]
+      }
+    ],
+    "userId": "650dfb7e-db35-4cf5-adbf-bbd2a5194267",
+    "userName": "Patrick Gomes Siqueira"
+  }
+]

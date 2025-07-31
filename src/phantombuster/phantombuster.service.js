@@ -1,0 +1,84 @@
+// src/phantombuster/phantombuster.service.js
+
+import axios from 'axios';
+import 'dotenv/config';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const { log, error } = await import(path.join(__dirname, '../utils/logger.service.js')); // Ajustado para ser compatível com ES Modules
+
+const API_BASE_URL = 'https://api.phantombuster.com/api/v2';
+const API_KEY = process.env.PHANTOMBUSTER_API_KEY;
+const LINKEDIN_AGENT_ID = process.env.PHANTOMBUSTER_LINKEDIN_AGENT_ID;
+
+// NOVO: A URL pública e fixa do seu CSV
+// **ATENÇÃO: SUBSTITUA 'http://localhost:3000' PELO SEU DOMÍNIO PÚBLICO EM PRODUÇÃO!**
+const CSV_PUBLIC_URL = process.env.PHANTOMBUSTER_CSV_URL || 'http://localhost:3000/data/linkedins.csv'; 
+
+const client = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'x-phantombuster-key': API_KEY, // Usa a variável de ambiente
+    'Content-Type': 'application/json',
+  },
+});
+
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Executa o agente de scraping do LinkedIn consumindo uma URL CSV.
+ * @returns {Promise<string|null>} Retorna o containerId se a execução foi bem-sucedida, null caso contrário.
+ */
+export const runLinkedInScraperFromCSV = async () => { // Renomeado e sem profileUrl/sessionCookie
+  if (!API_KEY || !LINKEDIN_AGENT_ID || !CSV_PUBLIC_URL) {
+    error("Credenciais da Phantombuster (API Key, Agent ID ou CSV URL) não estão configuradas.");
+    return null;
+  }
+
+  log(`--- PHANTOMBUSTER AGENT: Iniciando agente para CSV: ${CSV_PUBLIC_URL} ---`);
+
+  try {
+    const launchResponse = await client.post('/agents/launch', {
+      id: LINKEDIN_AGENT_ID,
+      argument: {
+        spreadsheetUrl: CSV_PUBLIC_URL,
+        columnName: 'linkedinProfileUrl', // Nome da coluna no seu CSV
+        numberOfAddsPerLaunch: 1, // Processa 1 perfil por lançamento (ou mais, se desejar)
+        enrichWithCompanyData: true,
+        emailChooser: 'none', // Define como none para não gastar créditos extras se não precisar de emails
+        pushResultToCRM: true, // Garante que o resultado vá para o org-storage (leads)
+      },
+    });
+    const containerId = launchResponse.data.containerId;
+    if (!containerId) throw new Error("A resposta do 'launch' não retornou um containerId.");
+    log(`Agente iniciado. Container ID: ${containerId}`);
+
+    // ETAPA 2: Aguardar a finalização do agente.
+    let isFinished = false;
+    let attempts = 0;
+    while (!isFinished && attempts < 20) { // Ajuste o número de tentativas se o scraping demorar mais
+      await wait(6000); // Espera 6 segundos
+      attempts++;
+      const containerResponse = await client.get('/containers/fetch', { params: { id: containerId } });
+      const containerStatus = containerResponse.data.status;
+      log(`Verificando status (Tentativa ${attempts}/20): ${containerStatus}`);
+      if (containerStatus === 'finished' || containerStatus === 'finalized') {
+        isFinished = true;
+      } else if (containerStatus === 'failed') {
+        throw new Error(`A execução do container ${containerId} falhou.`);
+      }
+    }
+    if (!isFinished) throw new Error("Tempo limite de espera pela finalização do agente excedido.");
+    
+    log("--- PHANTOMBUSTER AGENT: Execução concluída com sucesso. ---");
+    return containerId; // Retorna o containerId (sucesso)
+
+  } catch (err) {
+    const errorMessage = err.response?.data?.error || err.message;
+    error("Erro ao executar o agente da Phantombuster:", errorMessage);
+    return null;
+  }
+};

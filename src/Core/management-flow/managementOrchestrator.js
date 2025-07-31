@@ -1,0 +1,168 @@
+// src/Core/management-flow/managementOrchestrator.js
+
+import { getAllTalentsPaginated, getTalentById } from '../../Inhire/Talents/talents.service.js';
+import { getApplicationsForJob, updateApplication, getJobTalent } from '../../Inhire/JobTalents/jobTalents.service.js';
+import { getJobDetails } from '../../Inhire/Jobs/jobs.service.js';
+import { log, error } from '../../utils/logger.service.js';
+import { saveDebugDataToFile } from '../../utils/debug.service.js';
+import { getCustomFieldsForEntity } from '../../Inhire/CustomDataManager/customDataManager.service.js';
+
+export const fetchCandidatesForJob = async (jobId) => {
+    log(`--- ORQUESTRADOR: Buscando candidaturas para a vaga ${jobId} ---`);
+    try {
+        // Conforme a documentação, este endpoint retorna a lista de candidaturas
+        // e cada uma já contém os detalhes do talento e da etapa.
+        const applications = await getApplicationsForJob(jobId);
+        if (applications === null) throw new Error("Falha ao buscar candidaturas na API.");
+
+        saveDebugDataToFile(`candidates_for_job_${jobId}_${Date.now()}.txt`, applications);
+
+        const stageMap = new Map();
+        applications.forEach(app => {
+            if (app?.stage?.id && app?.stage?.name) {
+                stageMap.set(app.stage.id, { id: app.stage.id, name: app.stage.name });
+            }
+        });
+        const availableStages = Array.from(stageMap.values());
+
+        const formattedCandidates = applications
+            .filter(app => app?.talent?.id && app?.stage?.id)
+            .map(app => ({
+                // Usamos os dados do objeto `talent` dentro da candidatura
+                id: app.talent.id,
+                name: app.talent.name,
+                headline: app.talent.headline || 'Sem título',
+                // Dados da candidatura em si
+                application: {
+                    id: app.id,
+                    stageName: app.stage.name,
+                    stageId: app.stage.id,
+                    status: app.status,
+                    createdAt: app.createdAt
+                }
+            }));
+
+        return { success: true, data: { candidates: formattedCandidates, stages: availableStages } };
+
+    } catch (err) {
+        error("Erro em fetchCandidatesForJob:", err.message);
+        return { success: false, error: err.message };
+    }
+};
+
+export const fetchTalentDetails = async (talentId) => {
+    log(`--- ORQUESTRADOR: Buscando detalhes do perfil do talento ${talentId} ---`);
+    try {
+        const talentData = await getTalentById(talentId);
+        if (!talentData) {
+            throw new Error(`Talento com ID ${talentId} não encontrado.`);
+        }
+
+        const applications = talentData.jobs || [];
+        const enrichedApplications = await Promise.all(
+            applications.map(async (app) => {
+                const jobDetails = await getJobDetails(app.id);
+                return {
+                    id: app.talent?.id,
+                    jobId: app.id,
+                    jobName: jobDetails ? jobDetails.name : 'Vaga Desconhecida',
+                    status: app.talent?.stage?.name || 'Status Desconhecido'
+                };
+            })
+        );
+        
+        talentData.appliedJobs = enrichedApplications;
+        delete talentData.jobs;
+
+        return { success: true, talent: talentData };
+    } catch (err) {
+        error("Erro em fetchTalentDetails:", err.message);
+        return { success: false, error: err.message };
+    }
+};
+
+export const fetchCandidateDetailsForJobContext = async (jobId, talentId) => {
+    log(`--- ORQUESTRADOR: Buscando detalhes contextuais para T:${talentId} em V:${jobId} ---`);
+    try {
+        // Conforme a documentação, precisamos de duas chamadas:
+        // 1. Para os detalhes do perfil do talento.
+        // 2. Para os detalhes da candidatura específica.
+        const [talentProfile, applicationDetails] = await Promise.all([
+            getTalentById(talentId),
+            getJobTalent(jobId, talentId)
+        ]);
+
+        if (!talentProfile) throw new Error(`Perfil do talento ${talentId} não encontrado.`);
+        if (!applicationDetails) throw new Error(`Candidatura para talento ${talentId} na vaga ${jobId} não encontrada.`);
+
+        // Agora combinamos os dados das duas fontes corretas.
+        const candidateData = {
+            // Dados do perfil, vindos da chamada a /talents/:id
+            id: talentProfile.id,
+            name: talentProfile.name,
+            headline: talentProfile.headline,
+            email: talentProfile.email,
+            phone: talentProfile.phone,
+            location: talentProfile.location,
+            linkedinUsername: talentProfile.linkedinUsername,
+            
+            // Dados da candidatura, vindos da chamada a /job-talents/:jobId/talents/:id
+            application: {
+                id: applicationDetails.id,
+                stageName: applicationDetails.stage?.name || 'Etapa não definida',
+                stageId: applicationDetails.stage?.id || null,
+                status: applicationDetails.status,
+                createdAt: applicationDetails.createdAt
+            }
+        };
+
+        return { success: true, candidateData: candidateData };
+
+    } catch (err) {
+        error("Erro em fetchCandidateDetailsForJobContext:", err.message);
+        return { success: false, error: err.message };
+    }
+};
+
+export const fetchAllTalents = async (limit, exclusiveStartKey) => {
+    log("--- ORQUESTRADOR: Buscando uma página de talentos ---");
+    try {
+        const response = await getAllTalentsPaginated(limit, exclusiveStartKey);
+        if (!response) throw new Error("A API falhou ao buscar talentos.");
+        return { 
+            success: true, 
+            data: {
+                talents: response.items,
+                nextPageKey: response.exclusiveStartKey
+            }
+        };
+    } catch (err) {
+        error("Erro em fetchAllTalents:", err.message);
+        return { success: false, error: err.message };
+    }
+};
+
+export const handleUpdateApplicationStatus = async (applicationId, newStageId) => {
+    log(`--- ORQUESTRADOR: Atualizando etapa da candidatura ${applicationId} para o ID: ${newStageId} ---`);
+    try {
+        const payload = { stageId: newStageId };
+        const updatedApplication = await updateApplication(applicationId, payload);
+        if (!updatedApplication) throw new Error("Falha ao atualizar a candidatura.");
+        return { success: true, application: updatedApplication };
+    } catch (err) {
+        error("Erro em handleUpdateApplicationStatus:", err.message);
+        return { success: false, error: err.message };
+    }
+};
+
+export const fetchCustomFields = async (entity) => {
+    log(`--- ORQUESTRADOR: Buscando campos personalizados para a entidade ${entity} ---`);
+    try {
+        const fields = await getCustomFieldsForEntity(entity);
+        if (fields === null) throw new Error("A API falhou ao buscar os campos personalizados.");
+        return { success: true, fields: fields };
+    } catch (err) {
+        error("Erro em fetchCustomFields:", err.message);
+        return { success: false, error: err.message };
+    }
+};

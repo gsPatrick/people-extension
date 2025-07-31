@@ -1,0 +1,53 @@
+{
+  "fromFrontend": {
+    "ratings": {
+      "undefined": 5
+    },
+    "feedback": "TESTETESTE",
+    "notes": "TESTETESTE",
+    "decision": "YES"
+  },
+  "sentToInHire": {
+    "feedback": {
+      "comment": "TESTETESTE",
+      "proceed": "YES"
+    },
+    "privateNotes": "TESTETESTE",
+    "skillCategories": [
+      {
+        "name": "Competências Técnicas",
+        "skills": [
+          {
+            "name": "tempo de experiência em processos com catalisadores?",
+            "score": 5
+          },
+          {
+            "name": "tem experiência com atendimento ao cliente? Cite um case de um problema que precisou resolver",
+            "score": 5
+          },
+          {
+            "name": "experiência com controle de qualidade de processos químicos?",
+            "score": 5
+          },
+          {
+            "name": "tipo de processos químicos/setores você tem experiência? (refino?)",
+            "score": 5
+          }
+        ]
+      },
+      {
+        "name": "Perfil UAU",
+        "skills": [
+          {
+            "name": "formação primeira linha",
+            "score": 5
+          },
+          {
+            "name": "formação eng química",
+            "score": 5
+          }
+        ]
+      }
+    ]
+  }
+}
