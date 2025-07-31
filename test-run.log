@@ -1,19 +1,4 @@
-[2025-07-31T09:22:49.123Z] --- Logger configurado para escrever em arquivo: test-run.log ---
-[2025-07-31T09:22:49.138Z] 🚀 INICIANDO TESTE DE EXTRAÇÃO DE PERFIL COM PHANTOMBUSTER 🚀
-[2025-07-31T09:22:49.139Z] ------------------------------------------------------------------
-
-[2025-07-31T09:22:49.139Z] --- SERVIÇO LINKEDIN: Iniciando fluxo para: undefined ---
-[2025-07-31T09:22:49.140Z] --- PHANTOMBUSTER AGENT: Iniciando agente para: undefined ---
-[2025-07-31T09:22:49.140Z] Iniciando o agente 3747946547900470...
-[2025-07-31T09:22:50.800Z] Agente iniciado. Container ID: 7481011369018365
-[2025-07-31T09:22:57.670Z] Verificando status (Tentativa 1/20): finished
-[2025-07-31T09:22:57.671Z] --- PHANTOMBUSTER AGENT: Execução concluída com sucesso. ---
-[2025-07-31T09:22:57.671Z] Agente executado. Aguardando 5s para consistência dos dados...
-[2025-07-31T09:23:02.672Z] --- BUSCA DE LEAD (ESTRATÉGIA FINAL E FUNCIONAL) ---
-[2025-07-31T09:23:02.673Z] Procurando por: undefined
-[2025-07-31T09:23:02.673Z] Buscando a lista de leads mais recentes...
-[2025-07-31T09:23:03.718Z] Recebidos 2 leads. Agora filtrando em memória pelo SLUG...
-[2025-07-31T09:23:03.720Z] ❌ ERRO: Erro crítico ao buscar e filtrar leads na Phantombuster: "Cannot read properties of undefined (reading 'split')"
-[2025-07-31T09:23:03.721Z] ❌ ERRO: Não foi possível encontrar o lead correspondente na Phantombuster. 
-[2025-07-31T09:23:03.721Z] ❌ ERRO: O SCRIPT DE TESTE DA PHANTOMBUSTER ENCONTROU UM ERRO. "A função extractProfileData não retornou dados. Verifique os logs de diagnóstico acima."
-[2025-07-31T09:23:03.721Z] --- Finalizando a execução do script. ---
+[2025-07-31T11:09:54.994Z] --- Logger configurado para escrever em arquivo: test-run.log ---
+[2025-07-31T11:09:55.001Z] --- ORQUESTRADOR DE AUTENTICAÇÃO: performLogin ---
+[2025-07-31T11:09:55.299Z] 🚀 Servidor rodando e ouvindo na porta 3000
+[2025-07-31T11:09:56.587Z] ✅ Servidor logado na InHire com sucesso na inicialização.
