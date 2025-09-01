@@ -10,8 +10,6 @@ import { getCustomFieldsForEntity } from '../../Inhire/CustomDataManager/customD
 export const fetchCandidatesForJob = async (jobId) => {
     log(`--- ORQUESTRADOR: Buscando candidaturas para a vaga ${jobId} ---`);
     try {
-        // Conforme a documentação, este endpoint retorna a lista de candidaturas
-        // e cada uma já contém os detalhes do talento e da etapa.
         const applications = await getApplicationsForJob(jobId);
         if (applications === null) throw new Error("Falha ao buscar candidaturas na API.");
 
@@ -28,11 +26,10 @@ export const fetchCandidatesForJob = async (jobId) => {
         const formattedCandidates = applications
             .filter(app => app?.talent?.id && app?.stage?.id)
             .map(app => ({
-                // Usamos os dados do objeto `talent` dentro da candidatura
                 id: app.talent.id,
                 name: app.talent.name,
                 headline: app.talent.headline || 'Sem título',
-                // Dados da candidatura em si
+                photo: app.talent.photo || null,
                 application: {
                     id: app.id,
                     stageName: app.stage.name,
@@ -53,26 +50,27 @@ export const fetchCandidatesForJob = async (jobId) => {
 export const fetchTalentDetails = async (talentId) => {
     log(`--- ORQUESTRADOR: Buscando detalhes do perfil do talento ${talentId} ---`);
     try {
-        const talentData = await getTalentById(talentId);
+        const talentData = await getTalentById(talentId); 
         if (!talentData) {
             throw new Error(`Talento com ID ${talentId} não encontrado.`);
         }
 
-        const applications = talentData.jobs || [];
+        const applications = talentData.jobs || []; 
+        
         const enrichedApplications = await Promise.all(
             applications.map(async (app) => {
-                const jobDetails = await getJobDetails(app.id);
+                const jobDetails = await getJobDetails(app.id); 
                 return {
-                    id: app.talent?.id,
-                    jobId: app.id,
+                    id: app.id, 
+                    jobId: app.id, 
                     jobName: jobDetails ? jobDetails.name : 'Vaga Desconhecida',
-                    status: app.talent?.stage?.name || 'Status Desconhecido'
+                    status: app.stage?.name || 'Status Desconhecido' 
                 };
             })
         );
         
-        talentData.appliedJobs = enrichedApplications;
-        delete talentData.jobs;
+        talentData.appliedJobs = enrichedApplications; 
+        delete talentData.jobs; 
 
         return { success: true, talent: talentData };
     } catch (err) {
@@ -84,9 +82,6 @@ export const fetchTalentDetails = async (talentId) => {
 export const fetchCandidateDetailsForJobContext = async (jobId, talentId) => {
     log(`--- ORQUESTRADOR: Buscando detalhes contextuais para T:${talentId} em V:${jobId} ---`);
     try {
-        // Conforme a documentação, precisamos de duas chamadas:
-        // 1. Para os detalhes do perfil do talento.
-        // 2. Para os detalhes da candidatura específica.
         const [talentProfile, applicationDetails] = await Promise.all([
             getTalentById(talentId),
             getJobTalent(jobId, talentId)
@@ -95,9 +90,10 @@ export const fetchCandidateDetailsForJobContext = async (jobId, talentId) => {
         if (!talentProfile) throw new Error(`Perfil do talento ${talentId} não encontrado.`);
         if (!applicationDetails) throw new Error(`Candidatura para talento ${talentId} na vaga ${jobId} não encontrada.`);
 
-        // Agora combinamos os dados das duas fontes corretas.
+        saveDebugDataToFile(`talent_profile_raw_${talentId}.txt`, talentProfile);
+        saveDebugDataToFile(`application_details_raw_T${talentId}_J${jobId}.txt`, applicationDetails);
+
         const candidateData = {
-            // Dados do perfil, vindos da chamada a /talents/:id
             id: talentProfile.id,
             name: talentProfile.name,
             headline: talentProfile.headline,
@@ -105,14 +101,15 @@ export const fetchCandidateDetailsForJobContext = async (jobId, talentId) => {
             phone: talentProfile.phone,
             location: talentProfile.location,
             linkedinUsername: talentProfile.linkedinUsername,
+            photo: talentProfile.photo || null,
             
-            // Dados da candidatura, vindos da chamada a /job-talents/:jobId/talents/:id
             application: {
                 id: applicationDetails.id,
                 stageName: applicationDetails.stage?.name || 'Etapa não definida',
                 stageId: applicationDetails.stage?.id || null,
                 status: applicationDetails.status,
-                createdAt: applicationDetails.createdAt
+                createdAt: applicationDetails.createdAt,
+                customFields: applicationDetails.customFields || []
             }
         };
 
@@ -133,7 +130,7 @@ export const fetchAllTalents = async (limit, exclusiveStartKey) => {
             success: true, 
             data: {
                 talents: response.items,
-                nextPageKey: response.exclusiveStartKey
+                exclusiveStartKey: response.exclusiveStartKey 
             }
         };
     } catch (err) {
@@ -163,6 +160,37 @@ export const fetchCustomFields = async (entity) => {
         return { success: true, fields: fields };
     } catch (err) {
         error("Erro em fetchCustomFields:", err.message);
+        return { success: false, error: err.message };
+    }
+};
+
+/**
+ * Lida com a atualização dos campos personalizados de uma candidatura.
+ * @param {string} applicationId - O ID da candidatura (JobTalent).
+ * @param {Array<object>} customFieldsData - Um array de objetos de campos personalizados a serem atualizados.
+ *   Ex: [{ id: "fieldId", value: "newValue" }]
+ * @returns {Promise<{success: boolean, error?: string, application?: object}>}
+ */
+export const handleUpdateCustomFieldsForApplication = async (applicationId, customFieldsData) => {
+    log(`--- ORQUESTRADOR: Atualizando campos personalizados para a candidatura ${applicationId} ---`);
+    try {
+        if (!applicationId || !Array.isArray(customFieldsData)) {
+            throw new Error("ID da candidatura e customFieldsData (array) são obrigatórios.");
+        }
+
+        const payload = { customFields: customFieldsData };
+        log("Payload de atualização de campos personalizados:", JSON.stringify(payload, null, 2));
+
+        const updatedApplication = await updateApplication(applicationId, payload);
+        
+        if (!updatedApplication) {
+            throw new Error("Falha ao atualizar os campos personalizados da candidatura.");
+        }
+        
+        return { success: true, application: updatedApplication };
+
+    } catch (err) {
+        error("Erro em handleUpdateCustomFieldsForApplication:", err.message);
         return { success: false, error: err.message };
     }
 };

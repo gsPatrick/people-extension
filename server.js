@@ -19,10 +19,11 @@ import { initializeSessionService } from './src/Core/session.service.js';       
 import { initializeAuthStorage } from './src/Inhire/Auth/authStorage.service.js';    // Caminho provavelmente OK
 import { performLogin } from './src/Core/Auth-Flow/authOrchestrator.js';            // Caminho provavelmente OK
 import apiRoutes from './src/routes/apiRoutes.js';                                   // Caminho provavelmente OK (conforme seu snippet anterior)
+import { initializeCache } from './src/Platform/Storage/localCache.service.js'; // <<< NOVA IMPORTAÇÃO
 
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
 // Configurar o logger no início
 configureLogger({ toFile: true });
@@ -39,6 +40,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ---- INICIALIZAÇÃO DO SERVIÇO DE BACKEND ----
 // O servidor, ao iniciar, se prepara para se comunicar com as APIs externas.
+initializeCache(); // <<< NOVA LINHA: Inicializa o banco SQLite
 initializeSessionService(memoryStorageAdapter);
 initializeAuthStorage(memoryStorageAdapter);
 

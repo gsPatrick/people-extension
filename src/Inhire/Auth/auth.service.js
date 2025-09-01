@@ -1,13 +1,14 @@
 // src/Inhire/Auth/auth.service.js
 
 import axios from 'axios';
+import { log, error } from '../../utils/logger.service.js'; // Importar o logger
 
 const AUTH_API_URL = process.env.INHIRE_AUTH_API_URL;
 const TENANT_ID = process.env.INHIRE_TENANT;
 
 export const loginInhire = async (email, password) => {
   const loginUrl = `${AUTH_API_URL}/login`;
-  console.log(`Tentando autenticar no endpoint: ${loginUrl}`);
+  log(`Tentando autenticar no endpoint: ${loginUrl}`); // MODIFICADO: Usar log
 
   try {
     const response = await axios.post(loginUrl, {
@@ -20,12 +21,12 @@ export const loginInhire = async (email, password) => {
     });
 
     const { accessToken, refreshToken } = response.data;
-    console.log("Login realizado com sucesso. Tokens recebidos.");
+    log(`Login realizado com sucesso. Tokens recebidos. AccessToken length: ${accessToken?.length}, RefreshToken length: ${refreshToken?.length}`); // MODIFICADO: Adicionado log de comprimento do token
     
     return { accessToken, refreshToken };
 
-  } catch (error) {
-    console.error("Erro ao realizar o login na InHire:", error.response?.data || error.message);
+  } catch (err) { // MODIFICADO: Troquei 'error' por 'err' para evitar conflito com 'error' do logger
+    error("Erro ao realizar o login na InHire:", err.response?.data || err.message); // MODIFICADO: Usar error do logger
     return null;
   }
 };
@@ -37,7 +38,7 @@ export const loginInhire = async (email, password) => {
  */
 export const refreshInhireToken = async (currentRefreshToken) => {
   const refreshUrl = `${AUTH_API_URL}/refresh`;
-  console.log(`Tentando renovar o token no endpoint: ${refreshUrl}`);
+  log(`Tentando renovar o token no endpoint: ${refreshUrl}`); // MODIFICADO: Usar log
 
   try {
     const response = await axios.post(refreshUrl, {
@@ -49,19 +50,14 @@ export const refreshInhireToken = async (currentRefreshToken) => {
     });
 
     const { accessToken, refreshToken: newRefreshTokenFromApi } = response.data;
-    console.log("Token de acesso renovado com sucesso.");
+    log(`Token de acesso renovado com sucesso. Novo AccessToken length: ${accessToken?.length}`); // MODIFICADO: Adicionado log de comprimento do token
 
-    // ==========================================================
-    // CORREÇÃO APLICADA AQUI
-    // ==========================================================
-    // Se a API retornar um novo refresh token, use-o.
-    // Caso contrário, REUTILIZE o refresh token antigo que já era válido.
     const finalRefreshToken = newRefreshTokenFromApi || currentRefreshToken;
 
     return { accessToken, refreshToken: finalRefreshToken };
 
-  } catch (error) {
-    console.error("Erro ao renovar o token da InHire:", error.response?.data || error.message);
+  } catch (err) { // MODIFICADO: Troquei 'error' por 'err'
+    error("Erro ao renovar o token da InHire:", err.response?.data || err.message); // MODIFICADO: Usar error do logger
     return null;
   }
 };

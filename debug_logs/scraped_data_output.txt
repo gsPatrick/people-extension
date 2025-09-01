@@ -1,0 +1,101 @@
+{
+  "linkedinCompanySlug": "microsoft",
+  "linkedinPreviousCompanySlug": "uchicago",
+  "linkedinSchoolCompanySlug": "universityofchicagoboothschoolofbusiness",
+  "linkedinPreviousSchoolCompanySlug": "manipal-institute-of-technology",
+  "editionsHistory": [
+    {
+      "type": "agent",
+      "timestamp": 1753902890458,
+      "mainAgentId": "3747946547900470",
+      "identityType": "linkedin",
+      "identityProfileId": "1087859331"
+    }
+  ],
+  "firstName": "Satya",
+  "lastName": "Nadella",
+  "location": "Redmond, Washington, United States",
+  "companyName": "Microsoft",
+  "companyIndustry": "Computer Software",
+  "linkedinHeadline": "Chairman and CEO at Microsoft",
+  "linkedinJobTitle": "Chairman and CEO",
+  "linkedinJobDateRange": "Feb 2014 - Present",
+  "linkedinProfileId": "19186432",
+  "linkedinProfileUrn": "ACoAAAEkwwAB9KEc2TrQgOLEQ-vzRyZeCDyc6DQ",
+  "linkedinProfileImageUrn": "urn:li:digitalmediaAsset:C5603AQHHUuOSlRVA1w",
+  "linkedinFollowersCount": 11479364,
+  "linkedinIsHiringBadge": false,
+  "linkedinIsOpenToWorkBadge": false,
+  "linkedinDescription": "As chairman and CEO of Microsoft, I define my mission and that of my company as empowering every person and every organization on the planet to achieve more.",
+  "linkedinPreviousJobDateRange": "2018 - Present",
+  "linkedinPreviousJobTitle": "Member Board Of Trustees",
+  "linkedinPreviousSchoolDegree": "Bachelor’s Degree",
+  "linkedinPreviousSchoolName": "Manipal Institute of Technology",
+  "linkedinSchoolDateRange": "1994 - 1996",
+  "linkedinSchoolName": "The University of Chicago Booth School of Business",
+  "previousCompanyName": "University of Chicago",
+  "linkedinAccountRelativeProperties": [
+    {
+      "sourceUserId": "1087859331",
+      "connectionDegree": 3
+    }
+  ],
+  "id": "3676126687865588",
+  "linkedinProfileSlug": "satyanadella",
+  "company": {
+    "id": "759487952241716",
+    "companyId": "1035",
+    "companySlug": "microsoft",
+    "properties": {
+      "name": "Microsoft",
+      "type": "COMPANY",
+      "logoUrl": "https://media.licdn.com/dms/image/v2/D560BAQH32RJQCl3dDQ/company-logo_400_400/B56ZYQ0mrGGoAc-/0/1744038948046/microsoft_logo?e=1750896000&v=beta&t=gZ1r5EuUBtTIkTnAhAtTI1DoFYfs1hOs1UIqtYmSskI",
+      "industries": [
+        {
+          "code": "4",
+          "name": "Computer Software"
+        }
+      ],
+      "websiteUrl": "https://news.microsoft.com/",
+      "description": "Every company has a mission. What's ours? To empower every person and every organization to achieve more. We believe technology can and should be a force for good and that meaningful innovation contributes to a brighter world in the future and today. Our culture doesn’t just encourage curiosity; it embraces it. Each day we make progress together by showing up as our authentic selves. We show up with a learn-it-all mentality. We show up cheering on others, knowing their success doesn't diminish our own. We show up every day open to learning our own biases, changing our behavior, and inviting in differences. Because impact matters. \n\nMicrosoft operates in 190 countries and is made up of approximately 228,000 passionate employees worldwide.",
+      "headquarter": {
+        "city": "Redmond",
+        "line1": "1 Microsoft Way",
+        "country": "US",
+        "postalCode": "98052",
+        "geographicArea": "Washington"
+      },
+      "industriesV2": [
+        {
+          "code": "4",
+          "name": "Software Development"
+        }
+      ],
+      "specialities": [],
+      "employeeCount": 232258,
+      "followerCount": 25989620,
+      "employeeCountRange": {
+        "start": 10001
+      },
+      "linkedInCompanyUrl": "https://www.linkedin.com/company/microsoft/",
+      "similarOrganizations": [
+        "3608",
+        "1441",
+        "1382",
+        "11130470",
+        "1418841",
+        "79153021",
+        "18000077",
+        "70502230",
+        "74126343",
+        "3648281",
+        "25013385",
+        "15088102"
+      ],
+      "company_logo_filename": "1035.jpg",
+      "company_logo_updated_at": 1754007258642
+    },
+    "createdAt": 1743532518737,
+    "updatedAt": 1754007258642
+  }
+}

@@ -5,12 +5,10 @@ const API_BASE_URL = 'https://api.inhire.app';
 import { log, error } from '../../utils/logger.service.js'; 
 
 
-
-
 export const createTalent = async (talentData) => {
-  log("Criando novo talento com os dados:", talentData); // MUDADO para log
-  if (!talentData.linkedinUsername) {
-      error("O nome de usuário do LinkedIn (linkedinUsername) é obrigatório para criar um talento.");
+  log("Criando novo talento com os dados:", talentData); 
+  if (!talentData.linkedinUsername && !talentData.email) { 
+      error("O nome de usuário do LinkedIn (linkedinUsername) ou o email é obrigatório para criar um talento.");
       return null;
   }
   try {
@@ -24,7 +22,7 @@ export const createTalent = async (talentData) => {
 };
 
 export const updateTalent = async (talentId, updateData) => {
-  log(`Atualizando talento ${talentId} com os dados:`, updateData); // MUDADO para log
+  log(`Atualizando talento ${talentId} com os dados:`, updateData); 
   try {
     await apiClient.patch(`${API_BASE_URL}/talents/${talentId}`, updateData);
     log("Talento atualizado com sucesso.");
@@ -36,7 +34,7 @@ export const updateTalent = async (talentId, updateData) => {
 };
 
 export const deleteTalent = async (talentId) => {
-  log(`Removendo talento ${talentId}`); // MUDADO para log
+  log(`Removendo talento ${talentId}`); 
   try {
     await apiClient.delete(`${API_BASE_URL}/talents/${talentId}`);
     log("Talento removido com sucesso.");
@@ -48,9 +46,14 @@ export const deleteTalent = async (talentId) => {
 }
 
 export const getAllTalentsPaginated = async (limit = 20, exclusiveStartKey = null) => {
-  log(`Buscando uma página de talentos (limite de ${limit}).`); // Mensagem simplificada
+  log(`Buscando uma página de talentos (limite de ${limit}).`); 
   try {
-    const requestBody = {}; 
+    const requestBody = {
+      orderBy: {
+        field: "createdAt", 
+        direction: "desc"   
+      }
+    }; 
     if (exclusiveStartKey) {
       requestBody.exclusiveStartKey = exclusiveStartKey;
     }
@@ -73,30 +76,9 @@ export const getTalentById = async (talentId) => {
   }
 };
 
-// ==========================================================
-// FUNÇÃO MOVIDA PARA CÁ
-// ==========================================================
-/**
- * Busca todas as candidaturas (JobTalent) de um talento específico.
- * Endpoint: GET /job-talents/talents/:talentId
- * @param {string} talentId - O ID do talento.
- * @returns {Promise<Array<object>|null>} A lista de candidaturas.
- */
-export const getApplicationsForTalent = async (talentId) => {
-    log(`--- SERVIÇO (talents.service): Buscando candidaturas para o talento ${talentId} ---`);
-    try {
-        // A implementação original já usava o apiClient, o que é correto.
-        // O erro "Invalid key=value pair" sugere um problema no endpoint da API
-        // que não está processando o cabeçalho 'Authorization: Bearer <token>' corretamente.
-        // A chamada está sintaticamente correta do nosso lado.
-        const response = await apiClient.get(`${API_BASE_URL}/job-talents/talents/${talentId}`);
-        return response.data.items || [];
-    } catch (err) {
-        // O erro de autorização vai cair aqui.
-        error(`Erro ao buscar candidaturas para o talento ${talentId}:`, err.response?.data?.message || err.message);
-        return null; 
-    }
-};
+// REMOVIDO: A função getApplicationsForTalent é removida deste serviço.
+// A lógica de obtenção de candidaturas voltará a ser tratada
+// dentro do orchestrator fetchTalentDetails, usando talentData.jobs (propriedade do talento).
 
 /**
  * Busca talentos com base em filtros.
@@ -108,23 +90,17 @@ export const getApplicationsForTalent = async (talentId) => {
 export const findTalent = async (filters) => {
   log(`--- SERVIÇO: Buscando talento com filtros: ${JSON.stringify(filters)} ---`);
   try {
-    let allTalents = [];
     let hasMorePages = true;
     let exclusiveStartKey = null;
-    const limitPerPage = 50; // Busca em lotes de 50
+    const limitPerPage = 50; 
 
-    // Itera sobre as páginas até encontrar o talento ou esgotar
     while (hasMorePages) {
       const response = await getAllTalentsPaginated(limitPerPage, exclusiveStartKey);
       if (!response || !response.items) {
         throw new Error("Falha ao buscar talentos paginados para filtro.");
       }
 
-      allTalents.push(...response.items);
-
-      // Filtra a página atual em busca do linkedinUsername
       const foundInPage = response.items.find(t => {
-        // Normaliza o slug antes de comparar, removendo barras finais se houver
         const normalizedFilterUsername = filters.linkedinUsername ? filters.linkedinUsername.toLowerCase().replace(/\/+$/, '') : null;
         const normalizedTalentUsername = t.linkedinUsername ? t.linkedinUsername.toLowerCase().replace(/\/+$/, '') : null;
         
@@ -133,20 +109,20 @@ export const findTalent = async (filters) => {
 
       if (foundInPage) {
         log(`Talento encontrado via findTalent: ${foundInPage.name}`);
-        return foundInPage; // Retorna o talento assim que encontrado
+        return foundInPage; 
       }
 
       if (response.exclusiveStartKey) {
         exclusiveStartKey = response.exclusiveStartKey;
       } else {
-        hasMorePages = false; // Não há mais páginas
+        hasMorePages = false; 
       }
     }
 
     log("Nenhum talento encontrado com os filtros fornecidos após varrer todas as páginas.");
-    return null; // Não encontrou após todas as páginas
+    return null; 
   } catch (err) {
     error(`Erro ao buscar talento com filtros ${JSON.stringify(filters)}:`, err.response?.data?.message || err.message);
-    return null; // Retorna null em caso de erro na API
+    return null; 
   }
 };

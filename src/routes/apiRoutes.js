@@ -2,7 +2,6 @@
 
 import { Router } from 'express';
 
-// Importando os orquestradores com os nomes corretos
 import { validateProfile, handleConfirmCreation, handleEditTalent, handleDeleteTalent } from '../Core/Candidate-Flow/candidateOrchestrator.js';
 import { fetchAllJobsWithDetails, handleJobSelection, handleRemoveApplication } from '../Core/Job-Flow/jobOrchestrator.js';
 import { 
@@ -11,18 +10,71 @@ import {
     handleUpdateApplicationStatus, 
     fetchTalentDetails, 
     fetchCustomFields,
-    fetchCandidateDetailsForJobContext 
+    fetchCandidateDetailsForJobContext,
+    handleUpdateCustomFieldsForApplication
 } from '../Core/management-flow/managementOrchestrator.js';
-import { fetchScorecardDataForApplication, handleScorecardSubmission, handleCreateScorecardAndKit,fetchInterviewKitDetails } from '../Core/Evaluation-Flow/evaluationOrchestrator.js';
+// ADICIONADO: Importar a nova função do orquestrador
+import { 
+    fetchScorecardDataForApplication, 
+    handleScorecardSubmission, 
+    handleCreateScorecardAndKit,
+    fetchInterviewKitDetails,
+    fetchAvailableKitsForJob // <<< NOVA IMPORTAÇÃO
+} from '../Core/Evaluation-Flow/evaluationOrchestrator.js';
+
+import { syncProfileFromLinkedIn, evaluateSkillFromCache, getAIEvaluationCacheStatus } from '../Core/AI-Flow/aiOrchestrator.js';
+
 const router = Router();
+
+// <<< NOVA ROTA PARA VERIFICAR O CACHE >>>
+router.get('/ai/cache-status/:talentId', async (req, res) => {
+    const { talentId } = req.params;
+    try {
+        const result = await getAIEvaluationCacheStatus(talentId);
+        res.status(200).json(result);
+    } catch (err) {
+        res.status(500).json({ error: `Falha ao verificar status do cache: ${err.message}` });
+    }
+});
+
+// <<< ATUALIZAR ROTA DE AVALIAÇÃO >>>
+router.post('/ai/evaluate-skill', async (req, res) => {
+    // Agora usa a função 'evaluateSkillFromCache'
+    const { talentId, jobDetails, skillToEvaluate } = req.body;
+    if (!talentId || !jobDetails || !skillToEvaluate) {
+        return res.status(400).json({ error: 'Dados de talento, vaga e critério são obrigatórios.' });
+    }
+    try {
+        const result = await evaluateSkillFromCache(talentId, jobDetails, skillToEvaluate);
+        res.status(200).json(result);
+    } catch (err) {
+        res.status(500).json({ error: `Falha ao processar avaliação com IA: ${err.message}` });
+    }
+});
+
+// <<< NOVA ROTA PARA SINCRONIZAR >>>
+router.post('/ai/sync-profile', async (req, res) => {
+    const { talentId } = req.body;
+    if (!talentId) {
+        return res.status(400).json({ error: 'ID do talento é obrigatório.' });
+    }
+    try {
+        const result = await syncProfileFromLinkedIn(talentId);
+        res.status(200).json(result);
+    } catch (err) {
+        res.status(500).json({ error: `Falha ao sincronizar perfil: ${err.message}` });
+    }
+});
+
 
 // ===================================
 // ROTAS DE VAGAS E CANDIDATURAS
 // ===================================
 
+
+
 router.get('/jobs', async (req, res) => {
     const result = await fetchAllJobsWithDetails();
-    // Esta rota retorna um array diretamente, o que é esperado pelo frontend para esta view.
     if (result.success) res.status(200).json(result.jobs);
     else res.status(500).json({ error: result.error });
 });
@@ -31,7 +83,6 @@ router.post('/apply', async (req, res) => {
     const { jobId, talentId } = req.body;
     if (!jobId || !talentId) return res.status(400).json({ error: 'Os campos "jobId" e "talentId" são obrigatórios.' });
     const result = await handleJobSelection(jobId, talentId);
-    // Retorna o objeto da aplicação diretamente.
     if (result.success) res.status(201).json(result.application);
     else res.status(500).json({ error: result.error });
 });
@@ -43,7 +94,6 @@ router.delete('/applications/:id', async (req, res) => {
     else res.status(500).json({ error: result.error });
 });
 
-
 // ===================================
 // ROTAS DE CANDIDATO E PERFIL
 // ===================================
@@ -52,19 +102,16 @@ router.post('/validate-profile', async (req, res) => {
   const { profileUrl } = req.body;
   if (!profileUrl) return res.status(400).json({ error: 'O campo "profileUrl" é obrigatório.' });
   const result = await validateProfile(profileUrl);
-  // Retorna a estrutura completa { success, exists, talent, profileData }
   if (result.success) res.status(200).json(result);
   else res.status(500).json({ error: result.error });
 });
 
 router.post('/create-talent', async (req, res) => {
   const talentData = req.body;
-  const result = await handleConfirmCreation(talentData);
-  // Retorna o objeto do talento diretamente.
+  const result = await handleConfirmCreation(talentData, talentData.jobId);
   if (result.success) res.status(201).json(result.talent);
   else res.status(500).json({ error: result.error });
 });
-
 
 // ===================================
 // ROTAS DE GERENCIAMENTO (TALENTOS)
@@ -78,7 +125,6 @@ router.get('/talents', async (req, res) => {
         catch (e) { return res.status(400).json({ error: "Parâmetro 'nextPageKey' inválido." }); }
     }
     const result = await fetchAllTalents(limit, exclusiveStartKey);
-    // Retorna a estrutura completa { success, data: { talents, nextPageKey } }
     if (result.success) res.status(200).json(result);
     else res.status(500).json({ error: result.error });
 });
@@ -86,7 +132,6 @@ router.get('/talents', async (req, res) => {
 router.get('/talents/:id', async (req, res) => {
     const { id } = req.params;
     const result = await fetchTalentDetails(id);
-    // Retorna a estrutura completa { success, talent }
     if (result.success) res.status(200).json(result);
     else res.status(404).json({ error: result.error });
 });
@@ -105,7 +150,6 @@ router.delete('/talents/:id', async (req, res) => {
     else res.status(500).json({ error: result.error });
 });
 
-
 // ===================================
 // ROTAS DE GERENCIAMENTO (VAGAS E CANDIDATURAS)
 // ===================================
@@ -113,15 +157,13 @@ router.delete('/talents/:id', async (req, res) => {
 router.get('/jobs/:jobId/candidates', async (req, res) => {
     const { jobId } = req.params;
     const result = await fetchCandidatesForJob(jobId);
-    // Retorna a estrutura completa { success, data: { candidates, stages } }
     if (result.success) res.status(200).json(result);
     else res.status(500).json({ error: result.error });
 });
 
 router.get('/candidate-details/job/:jobId/talent/:talentId', async (req, res) => {
     const { jobId, talentId } = req.params;
-    const result = await fetchCandidateDetailsForJobContext(jobId, talentId);
-    // Retorna a estrutura completa { success, candidateData }
+    const result = await fetchCandidateDetailsForJobContext(jobId, talentId); 
     if (result.success) res.status(200).json(result);
     else res.status(500).json({ error: result.error });
 });
@@ -131,11 +173,25 @@ router.patch('/applications/:applicationId/status', async (req, res) => {
     const { stageId } = req.body;
     if (!stageId) return res.status(400).json({ error: 'O campo "stageId" é obrigatório.' });
     const result = await handleUpdateApplicationStatus(applicationId, stageId);
-    // Retorna o objeto da aplicação atualizada diretamente.
     if (result.success) res.status(200).json(result.application);
     else res.status(500).json({ error: result.error });
 });
 
+router.patch('/applications/:applicationId/custom-fields', async (req, res) => {
+    const { applicationId } = req.params;
+    const { customFields } = req.body;
+    
+    if (!Array.isArray(customFields)) {
+        return res.status(400).json({ error: 'O campo "customFields" deve ser um array.' });
+    }
+    const result = await handleUpdateCustomFieldsForApplication(applicationId, customFields);
+    
+    if (result.success) {
+        res.status(200).json(result.application);
+    } else {
+        res.status(500).json({ error: result.error });
+    }
+});
 
 // ===================================
 // ROTAS DE SCORECARD
@@ -144,31 +200,34 @@ router.patch('/applications/:applicationId/status', async (req, res) => {
 router.get('/scorecard-data/application/:applicationId/job/:jobId', async (req, res) => {
     const { applicationId, jobId } = req.params;
     const result = await fetchScorecardDataForApplication(applicationId, jobId);
-    // Retorna a estrutura completa { success, data: { type, content } }
     if (result.success) res.status(200).json(result);
     else res.status(500).json({ error: result.error });
 });
 
+// ==========================================================
+// NOVA ROTA PARA BUSCAR KITS
+// ==========================================================
+router.get('/jobs/:jobId/interview-kits', async (req, res) => {
+    const { jobId } = req.params;
+    const result = await fetchAvailableKitsForJob(jobId);
+    if (result.success) res.status(200).json(result.kits); // Retorna o array de kits diretamente
+    else res.status(500).json({ error: result.error });
+});
+
 router.post('/submit-scorecard', async (req, res) => {
-    const { applicationId, scorecardId, evaluationData } = req.body;
-    if (!applicationId || !scorecardId || !evaluationData) {
-        return res.status(400).json({ error: 'Os campos "applicationId", "scorecardId" e "evaluationData" são obrigatórios.' });
-    }
-    const result = await handleScorecardSubmission(applicationId, scorecardId, evaluationData);
+    const result = await handleScorecardSubmission(req.body.applicationId, req.body.scorecardId, req.body.evaluationData);
     if (result.success) res.status(200).json(result.submission);
     else res.status(500).json({ error: result.error });
 });
 
 router.post('/create-scorecard-and-kit', async (req, res) => {
     const result = await handleCreateScorecardAndKit(req.body);
-    if (result.success) res.status(201).json(result.kit);
+    if (result.success) res.status(201).json(result);
     else res.status(500).json({ error: result.error });
 });
 
-
-
 // ===================================
-// ROTAS DE GERENCIAMENTO (CAMPOS PERSONALIZADOS)
+// ROTAS DE GERENCIAMENTO (CAMPOS PERSONALIZADOS E KITS)
 // ===================================
 
 router.get('/custom-fields/:entity', async (req, res) => {
@@ -177,11 +236,9 @@ router.get('/custom-fields/:entity', async (req, res) => {
         return res.status(400).json({ error: 'Entidade inválida. Use "TALENTS" ou "JOB_TALENTS".' });
     }
     const result = await fetchCustomFields(entity.toUpperCase());
-    // Retorna o array de campos diretamente.
     if (result.success) res.status(200).json(result.fields);
     else res.status(500).json({ error: result.error });
 });
-
 
 router.get('/interview-kit/:kitId', async (req, res) => {
     const { kitId } = req.params;
@@ -189,6 +246,5 @@ router.get('/interview-kit/:kitId', async (req, res) => {
     if (result.success) res.status(200).json(result.kit);
     else res.status(404).json({ error: result.error });
 });
-
 
 export default router;

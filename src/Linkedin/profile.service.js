@@ -54,20 +54,35 @@ export const extractProfileData = async (profileUrlToScrape) => {
 
   // 4. Formatar os dados do lead
   try {
-    // Normaliza o slug antes de usar, para consistência com o que será salvo no linkedinUsername
+    log(`DEBUG: Dados brutos do lead recebidos do Phantombuster: ${JSON.stringify(leadData, null, 2)}`);
+
     const linkedinProfileSlug = leadData.linkedinProfileSlug ? leadData.linkedinProfileSlug.replace(/\/+$/, '') : null;
 
     const formattedProfile = {
+      // --- Campos Padrão ---
       profileUrl: `https://www.linkedin.com/in/${linkedinProfileSlug}/`,
       name: `${leadData.firstName || ''} ${leadData.lastName || ''}`.trim(),
       headline: leadData.linkedinHeadline || null,
       location: leadData.location || null,
-      summary: leadData.linkedinDescription || null,
       company: leadData.companyName || null,
       jobTitle: leadData.linkedinJobTitle || null,
-      
-      linkedinUsername: linkedinProfileSlug, // Já normalizado
-      
+      linkedinUsername: linkedinProfileSlug,
+
+      // --- Dados para Campos Personalizados ---
+      followersCount: leadData.linkedinFollowersCount || 0,
+      profileDescription: leadData.linkedinDescription || null,
+      companyWebsite: leadData.company?.properties?.websiteUrl || null,
+      isHiring: leadData.linkedinIsHiringBadge || false,
+      isOpenToWork: leadData.linkedinIsOpenToWorkBadge || false,
+      previousJobTitle: leadData.linkedinPreviousJobTitle || null,
+      previousCompany: leadData.previousCompanyName || null,
+      previousJobDateRange: leadData.linkedinPreviousJobDateRange || null,
+      schoolName: leadData.linkedinSchoolName || null,
+      schoolDateRange: leadData.linkedinSchoolDateRange || null,
+      previousSchoolName: leadData.linkedinPreviousSchoolName || null,
+      previousSchoolDegree: leadData.linkedinPreviousSchoolDegree || null,
+
+      // --- Dados Estruturados (se necessário no futuro) ---
       experience: leadData.linkedinJobTitle ? [{
           title: leadData.linkedinJobTitle,
           company: leadData.companyName,
