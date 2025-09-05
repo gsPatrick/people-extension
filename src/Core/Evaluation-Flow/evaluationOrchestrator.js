@@ -2,6 +2,7 @@
 
 import { htmlToText } from 'html-to-text';
 import { getInterviewKitsForJob, submitScorecardResponse, getScorecardSummaryForApplication, createJobScorecard, createInterviewKit, getInterviewKitById } from '../../Inhire/ScoreCards/scorecards.service.js';
+import { getWeightsForKit, saveWeightsForKit } from './weights.service.js'; // <<< NOVA IMPORTAÇÃO
 import { log, error } from '../../utils/logger.service.js';
 import { saveDebugDataToFile } from '../../utils/debug.service.js';
 
@@ -157,7 +158,6 @@ export const handleCreateScorecardAndKit = async (data) => {
         const newKit = await createInterviewKit({ jobId, jobStageId, name, script, skillCategories });
         if (!newKit) throw new Error("Falha ao criar o novo Kit de Entrevista.");
         
-        // Aplica as transformações no novo kit antes de retornar
         const enrichedKit = enrichKitDataWithIds(newKit);
         const cleanedKit = cleanHtmlScript(enrichedKit);
 
@@ -186,25 +186,53 @@ export const fetchAvailableKitsForJob = async (jobId) => {
     }
 };
 
-// ==========================================================
-// CORREÇÃO APLICADA AQUI
-// ==========================================================
+
 export const fetchInterviewKitDetails = async (kitId) => {
     log(`--- ORQUESTRADOR: Buscando detalhes para o kit de entrevista ${kitId} ---`);
     try {
         let kit = await getInterviewKitById(kitId);
         if (!kit) {
-            // Lança um erro explícito se o kit não for encontrado
             throw new Error(`Kit de entrevista com ID ${kitId} não encontrado.`);
         }
-
-        // Aplica as mesmas transformações para garantir a consistência dos dados
+        
+        // Aplica as transformações para garantir a consistência dos dados
         const enrichedKit = enrichKitDataWithIds(kit);
         const cleanedKit = cleanHtmlScript(enrichedKit);
+        
+        // <<< MODIFICAÇÃO: Busca os pesos e anexa ao objeto do kit >>>
+        const weights = await getWeightsForKit(kitId);
+        const finalKit = { ...cleanedKit, weights };
 
-        return { success: true, kit: cleanedKit };
+        return { success: true, kit: finalKit };
+
     } catch (err) {
         error(`Erro em fetchInterviewKitDetails para o kit ${kitId}:`, err.message);
+        return { success: false, error: err.message };
+    }
+};
+
+/* ========================================================== */
+/* NOVA FUNÇÃO PARA SALVAR OS PESOS                           */
+/* ========================================================== */
+/**
+ * Orquestra o salvamento dos pesos de um kit de entrevista.
+ * @param {string} kitId - O ID do kit de entrevista.
+ * @param {object} weightsData - O objeto com os pesos a serem salvos.
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export const handleSaveKitWeights = async (kitId, weightsData) => {
+    log(`--- ORQUESTRADOR: Salvando pesos para o kit ${kitId} ---`);
+    try {
+        if (!kitId || !weightsData) {
+            throw new Error("kitId e weightsData são obrigatórios.");
+        }
+        const success = await saveWeightsForKit(kitId, weightsData);
+        if (!success) {
+            throw new Error("O serviço de pesos falhou ao salvar os dados.");
+        }
+        return { success: true };
+    } catch (err) {
+        error(`Erro em handleSaveKitWeights para o kit ${kitId}:`, err.message);
         return { success: false, error: err.message };
     }
 };

@@ -22,9 +22,28 @@ import {
     fetchAvailableKitsForJob // <<< NOVA IMPORTAÇÃO
 } from '../Core/Evaluation-Flow/evaluationOrchestrator.js';
 
-import { syncProfileFromLinkedIn, evaluateSkillFromCache, getAIEvaluationCacheStatus } from '../Core/AI-Flow/aiOrchestrator.js';
+import { syncProfileFromLinkedIn, evaluateSkillFromCache, getAIEvaluationCacheStatus, evaluateScorecardFromCache } from '../Core/AI-Flow/aiOrchestrator.js';
 
 const router = Router();
+
+
+/* ========================================================== */
+/* ROTA DE AVALIAÇÃO ATUALIZADA PARA O NOVO FLUXO             */
+/* ========================================================== */
+router.post('/ai/evaluate-scorecard', async (req, res) => {
+    const { talentId, jobDetails, scorecard, weights } = req.body; // <<< 1. Extrair weights aqui
+    if (!talentId || !jobDetails || !scorecard || !weights) { // Adicionado !weights à validação
+        return res.status(400).json({ error: 'Dados de talento, vaga, scorecard e pesos são obrigatórios.' });
+    }
+    try {
+        // <<< 2. Passar os weights para o orquestrador >>>
+        const result = await evaluateScorecardFromCache(talentId, jobDetails, scorecard, weights);
+        res.status(200).json(result);
+    } catch (err) {
+        res.status(500).json({ error: `Falha ao processar avaliação com IA: ${err.message}` });
+    }
+});
+
 
 // <<< NOVA ROTA PARA VERIFICAR O CACHE >>>
 router.get('/ai/cache-status/:talentId', async (req, res) => {
@@ -245,6 +264,23 @@ router.get('/interview-kit/:kitId', async (req, res) => {
     const result = await fetchInterviewKitDetails(kitId);
     if (result.success) res.status(200).json(result.kit);
     else res.status(404).json({ error: result.error });
+});
+
+/* ========================================================== */
+/* NOVA ROTA PARA SALVAR OS PESOS DE UM KIT                   */
+/* ========================================================== */
+router.post('/interview-kit/:kitId/weights', async (req, res) => {
+    const { kitId } = req.params;
+    const { weights } = req.body;
+    if (!weights) {
+        return res.status(400).json({ error: 'O campo "weights" é obrigatório.' });
+    }
+    const result = await handleSaveKitWeights(kitId, weights);
+    if (result.success) {
+        res.status(200).json({ message: 'Pesos salvos com sucesso.' });
+    } else {
+        res.status(500).json({ error: result.error });
+    }
 });
 
 export default router;

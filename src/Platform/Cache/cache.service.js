@@ -1,4 +1,4 @@
-// CRIE O ARQUIVO: src/Platform/Cache/cache.service.js
+// src/Platform/Cache/cache.service.js
 
 import Database from 'better-sqlite3';
 import path from 'path';
@@ -8,13 +8,23 @@ import { log, error } from '../../utils/logger.service.js';
 const dbPath = path.join(process.cwd(), 'linkedin_cache.sqlite');
 const db = new Database(dbPath);
 
-// Cria a tabela na primeira vez que o serviço é carregado, se ela não existir
+// Cria as tabelas na primeira vez que o serviço é carregado, se elas não existirem
 db.exec(`
   CREATE TABLE IF NOT EXISTS profiles (
     linkedinUsername TEXT PRIMARY KEY,
     scrapedData TEXT NOT NULL,
     lastScrapedAt INTEGER NOT NULL
-  )
+  );
+
+  /* ========================================================== */
+  /* NOVA TABELA PARA ARMAZENAR OS PESOS DOS CRITÉRIOS          */
+  /* ========================================================== */
+  CREATE TABLE IF NOT EXISTS interview_kit_weights (
+    kit_id TEXT NOT NULL,
+    skill_id TEXT NOT NULL,
+    weight INTEGER NOT NULL DEFAULT 2, /* 1=Baixo, 2=Médio, 3=Alto */
+    PRIMARY KEY (kit_id, skill_id)
+  );
 `);
 
 log('✅ Serviço de cache SQLite inicializado com sucesso.');
