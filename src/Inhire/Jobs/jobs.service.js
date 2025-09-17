@@ -17,7 +17,8 @@ export const getAllJobs = async () => {
     while (hasMorePages) {
       const payload = { limit: 100 }; // Pega lotes grandes
       if (exclusiveStartKey) {
-        payload.exclusiveStartKey = exclusiveStartKey;
+        // <<< CORREÇÃO 1: A chave no payload deve ser 'exclusiveStartkey' (k minúsculo) >>>
+        payload.exclusiveStartkey = exclusiveStartKey;
       }
       
       const response = await apiClient.post(`${API_BASE_URL}/jobs/paginated/lean`, payload);
@@ -27,8 +28,9 @@ export const getAllJobs = async () => {
         allJobs.push(...pageItems);
       }
 
-      if (response.data.exclusiveStartKey) {
-        exclusiveStartKey = response.data.exclusiveStartKey;
+      // <<< CORREÇÃO 2: A chave na resposta da API é 'exclusiveStartkey' (k minúsculo) >>>
+      if (response.data.exclusiveStartkey) {
+        exclusiveStartKey = response.data.exclusiveStartkey;
       } else {
         hasMorePages = false;
       }
