@@ -3,7 +3,8 @@
 import { extractProfileData } from '../../Linkedin/profile.service.js';
 import { findTalent, createTalent, deleteTalent, updateTalent } from '../../Inhire/Talents/talents.service.js';
 import { addTalentToJob, updateApplication } from '../../Inhire/JobTalents/jobTalents.service.js';
-import { STATIC_FIELD_MAPPING } from './customFieldMapping.js'; // NOVO: Importa o mapa estático inteligente
+import { getCustomFieldsForEntity } from '../../Inhire/CustomDataManager/customDataManager.service.js';
+import { mapProfileToInhireSchemaWithAI } from '../AI-Flow/aiOrchestrator.js'; 
 import { clearCacheByPrefix } from '../../utils/cache.service.js';
 import { log, error } from '../../utils/logger.service.js';
 
@@ -36,70 +37,62 @@ export const validateProfile = async (profileUrl) => {
 };
 
 /**
- * ETAPA 2 DO FLUXO: Orquestração completa com MAPEAMENTO ESTÁTICO E INTELIGENTE.
+ * ETAPA 2 DO FLUXO: Orquestração completa com MAPEAMENTO AUTÔNOMO E INTELIGENTE via IA.
  */
 export const handleConfirmCreation = async (talentData, jobId) => {
-    log(`--- ORQUESTRADOR: Iniciando criação com MAPEAMENTO INTELIGENTE para '${talentData.name}' na vaga '${jobId}' ---`);
+    log(`--- ORQUESTRADOR: Iniciando criação com MAPEAMENTO AUTÔNOMO para '${talentData.name}' na vaga '${jobId}' ---`);
     try {
         if (!jobId) throw new Error("O ID da Vaga (jobId) é obrigatório para o fluxo de criação.");
 
-        // === PASSO 1: Criar o talento com os dados básicos ===
-        log("Passo 1/3: Criando talento com dados básicos...");
-        const initialPayload = { name: talentData.name, linkedinUsername: talentData.linkedinUsername };
-        if (talentData.linkedinHeadline) initialPayload.headline = talentData.linkedinHeadline;
-        if (talentData.location) initialPayload.location = talentData.location;
-        if (talentData.companyName) initialPayload.company = talentData.companyName;
-        const newTalent = await createTalent(initialPayload);
+        // === PASSO 1: Criar o talento "esqueleto" com o mínimo absoluto ===
+        log("Passo 1/4: Criando talento com dados mínimos...");
+        const minimalPayload = {
+            name: talentData.name,
+            linkedinUsername: talentData.linkedinUsername,
+            headline: talentData.headline
+        };
+        const newTalent = await createTalent(minimalPayload);
         if (!newTalent || !newTalent.id) throw new Error("A API da InHire falhou ao criar o talento base.");
         log(`Talento base criado com sucesso. ID: ${newTalent.id}`);
 
-        // === PASSO 2: Criar a candidatura (JobTalent) ===
-        log("Passo 2/3: Criando a candidatura (JobTalent)...");
+        // === PASSO 2: Criar a candidatura para vincular o talento à vaga ===
+        log("Passo 2/4: Criando a candidatura (JobTalent)...");
         const application = await addTalentToJob(jobId, newTalent.id);
         if (!application || !application.id) throw new Error("Falha ao criar a candidatura (JobTalent).");
         const jobTalentId = application.id;
         log(`Candidatura criada com sucesso. JobTalent ID: ${jobTalentId}`);
 
-        // === PASSO 3: Mapeamento inteligente e atualização ===
-        log("Passo 3/3: Processando mapeamentos de campos personalizados...");
-        
-        const promises = Object.entries(STATIC_FIELD_MAPPING).map(async ([fieldId, mapping]) => {
-            try {
-                // A função `transform` pode ser síncrona ou assíncrona
-                const value = await Promise.resolve(mapping.transform(talentData));
-                
-                // Adiciona ao payload apenas se a transformação retornar um valor válido
-                // (não nulo, não undefined e, para strings, não vazias)
-                if (value !== null && value !== undefined && value !== "") {
-                    log(`- Mapeado: Campo ID '${fieldId}' receberá o valor: ${JSON.stringify(value)}`);
-                    return {
-                        id: fieldId,
-                        type: mapping.type,
-                        value: value
-                    };
-                }
-            } catch (transformErr) {
-                error(`Erro ao transformar o campo ID '${fieldId}'`, transformErr.message);
-            }
-            return null; // Retorna null se não houver valor ou se ocorrer um erro
-        });
+        // === PASSO 3: Coletar as "ferramentas" para a IA ===
+        log("Passo 3/4: Coletando schemas da InHire para o briefing da IA...");
+        const jobTalentFields = await getCustomFieldsForEntity('JOB_TALENTS');
 
-        // Aguarda todas as transformações e filtra os resultados nulos
-        const customFieldsToUpdate = (await Promise.all(promises)).filter(field => field !== null);
+        // Definimos os campos gerais que sabemos que a API de talento aceita na ATUALIZAÇÃO
+        const talentGeneralFields = [
+            { name: 'location', type: 'text', description: 'A cidade/estado/país do candidato.' },
+            { name: 'company', type: 'text', description: 'O nome da empresa atual do candidato.' },
+            { name: 'email', type: 'text', description: 'O email de contato principal.' },
+            { name: 'phone', type: 'text', description: 'O telefone de contato principal.' }
+        ];
 
-        if (customFieldsToUpdate.length > 0) {
-            const updatePayload = { customFields: customFieldsToUpdate };
-            log("Enviando payload de atualização para a candidatura:", JSON.stringify(updatePayload, null, 2));
-            const updatedApp = await updateApplication(jobTalentId, updatePayload);
-            if (!updatedApp) {
-                log(`AVISO: O talento e a candidatura foram criados, mas a atualização com campos personalizados falhou.`);
-            } else {
-                log("Campos personalizados foram preenchidos e atualizados com sucesso via candidatura.");
-            }
-        } else {
-            log("Nenhum dado do scraping correspondeu a um campo personalizado configurado para preenchimento automático.");
+        // === PASSO 4: Chamar a IA com o briefing completo e executar as atualizações ===
+        log("Passo 4/4: Enviando dossiê e schemas para a IA e executando atualizações...");
+        const mappedPayloads = await mapProfileToInhireSchemaWithAI(talentData, talentGeneralFields, jobTalentFields);
+
+        const { talentPayload, applicationPayload } = mappedPayloads;
+
+        // Atualiza o talento com os campos gerais que a IA encontrou
+        if (talentPayload && Object.keys(talentPayload).length > 0) {
+            log("Atualizando talento com dados gerais mapeados pela IA:", talentPayload);
+            await updateTalent(newTalent.id, talentPayload);
         }
 
+        // Atualiza a candidatura com os campos personalizados
+        if (applicationPayload && applicationPayload.customFields && applicationPayload.customFields.length > 0) {
+            log("Atualizando candidatura com campos personalizados mapeados pela IA:", applicationPayload);
+            await updateApplication(jobTalentId, applicationPayload);
+        }
+        
+        log("Processo de criação e preenchimento autônomo concluído com sucesso.");
         clearCacheByPrefix('talents_page_');
         return { success: true, talent: newTalent, application: application };
 

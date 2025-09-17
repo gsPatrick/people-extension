@@ -7,6 +7,7 @@ import { log, error } from '../../utils/logger.service.js';
 import { saveDebugDataToFile } from '../../utils/debug.service.js';
 import { getCustomFieldsForEntity } from '../../Inhire/CustomDataManager/customDataManager.service.js';
 
+// ... (outras funções como fetchCandidatesForJob, fetchTalentDetails, etc. permanecem iguais) ...
 export const fetchCandidatesForJob = async (jobId) => {
     log(`--- ORQUESTRADOR: Buscando candidaturas para a vaga ${jobId} ---`);
     try {
@@ -79,20 +80,41 @@ export const fetchTalentDetails = async (talentId) => {
     }
 };
 
+
+// ==========================================================
+// FUNÇÃO MODIFICADA
+// ==========================================================
 export const fetchCandidateDetailsForJobContext = async (jobId, talentId) => {
     log(`--- ORQUESTRADOR: Buscando detalhes contextuais para T:${talentId} em V:${jobId} ---`);
     try {
-        const [talentProfile, applicationDetails] = await Promise.all([
+        // 1. Busca todos os dados necessários em paralelo
+        const [talentProfile, applicationDetails, customFieldDefinitions] = await Promise.all([
             getTalentById(talentId),
-            getJobTalent(jobId, talentId)
+            getJobTalent(jobId, talentId),
+            getCustomFieldsForEntity('JOB_TALENTS') // <<< NOVA CHAMADA
         ]);
 
         if (!talentProfile) throw new Error(`Perfil do talento ${talentId} não encontrado.`);
         if (!applicationDetails) throw new Error(`Candidatura para talento ${talentId} na vaga ${jobId} não encontrada.`);
 
-        saveDebugDataToFile(`talent_profile_raw_${talentId}.txt`, talentProfile);
-        saveDebugDataToFile(`application_details_raw_T${talentId}_J${jobId}.txt`, applicationDetails);
+        // 2. Cria um mapa (dicionário) dos valores já salvos para fácil acesso
+        const savedValuesMap = new Map(
+            (applicationDetails.customFields || []).map(field => [field.id, field.value])
+        );
 
+        // 3. Enriquece as definições com os valores salvos
+        const enrichedCustomFields = (customFieldDefinitions || []).map(definition => {
+            // A API retorna as opções dentro do campo 'options'
+            const answerOptions = definition.options || [];
+            
+            return {
+                ...definition,
+                answerOptions, // Garante que as opções estejam disponíveis para o front-end
+                value: savedValuesMap.get(definition.id) || null // Adiciona o valor salvo ou null se não houver
+            };
+        });
+        
+        // 4. Monta o payload final com os campos enriquecidos
         const candidateData = {
             id: talentProfile.id,
             name: talentProfile.name,
@@ -109,7 +131,8 @@ export const fetchCandidateDetailsForJobContext = async (jobId, talentId) => {
                 stageId: applicationDetails.stage?.id || null,
                 status: applicationDetails.status,
                 createdAt: applicationDetails.createdAt,
-                customFields: applicationDetails.customFields || []
+                // <<< SUBSTITUI a lista antiga pela nova lista enriquecida >>>
+                customFields: enrichedCustomFields 
             }
         };
 
@@ -120,6 +143,10 @@ export const fetchCandidateDetailsForJobContext = async (jobId, talentId) => {
         return { success: false, error: err.message };
     }
 };
+// ==========================================================
+// FIM DA FUNÇÃO MODIFICADA
+// ==========================================================
+
 
 export const fetchAllTalents = async (limit, exclusiveStartKey) => {
     log("--- ORQUESTRADOR: Buscando uma página de talentos ---");
@@ -164,13 +191,6 @@ export const fetchCustomFields = async (entity) => {
     }
 };
 
-/**
- * Lida com a atualização dos campos personalizados de uma candidatura.
- * @param {string} applicationId - O ID da candidatura (JobTalent).
- * @param {Array<object>} customFieldsData - Um array de objetos de campos personalizados a serem atualizados.
- *   Ex: [{ id: "fieldId", value: "newValue" }]
- * @returns {Promise<{success: boolean, error?: string, application?: object}>}
- */
 export const handleUpdateCustomFieldsForApplication = async (applicationId, customFieldsData) => {
     log(`--- ORQUESTRADOR: Atualizando campos personalizados para a candidatura ${applicationId} ---`);
     try {

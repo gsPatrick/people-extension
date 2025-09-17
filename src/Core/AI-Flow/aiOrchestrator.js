@@ -29,7 +29,7 @@ export const syncProfileFromLinkedIn = async (talentId) => {
     }
 };
 
-export const evaluateScorecardFromCache = async (talentId, jobDetails, scorecard, weights) => { // <<< 1. Adicionar weights aqui
+export const evaluateScorecardFromCache = async (talentId, jobDetails, scorecard, weights) => {
     log(`--- ORQUESTRADOR IA: Avaliando SCORECARD COMPLETO para Talento ID: ${talentId} ---`);
     try {
         const talentInHire = await getTalentById(talentId);
@@ -40,7 +40,6 @@ export const evaluateScorecardFromCache = async (talentId, jobDetails, scorecard
         if (!cached) {
             throw new Error('Dados do perfil não encontrados no cache. Por favor, sincronize com o LinkedIn primeiro.');
         }
-        // <<< 2. Passar os weights para a função da IA >>>
         return await evaluateEntireScorecardWithAI(cached.profile, jobDetails, scorecard, weights);
     } catch (err) {
         error("Erro na avaliação do scorecard a partir do cache:", err.message);
@@ -54,12 +53,11 @@ const evaluateEntireScorecardWithAI = async (candidateProfileData, jobDetails, s
 
     const weightMap = { 1: 'Baixo', 2: 'Médio', 3: 'Alto' };
 
-    // <<< MODIFICAÇÃO CHAVE: Combinando skills com seus pesos para enviar à IA >>>
     const allSkillsWithWeights = scorecard.skillCategories.flatMap(cat => 
         cat.skills.map(skill => ({
             id: skill.id,
             name: skill.name,
-            weight: weightMap[weights[skill.id] || 2] // Converte o número do peso em texto (Baixo, Médio, Alto)
+            weight: weightMap[weights[skill.id] || 2]
         }))
     );
 
@@ -121,14 +119,7 @@ export const getAIEvaluationCacheStatus = async (talentId) => {
     if (!talentInHire?.linkedinUsername) return { hasCache: false, lastScrapedAt: null };
     return getCacheStatus(talentInHire.linkedinUsername);
 };
-/**
- * [AÇÃO RÁPIDA] Avalia um critério usando os dados em cache.
- * Esta função é chamada pelo botão "IA" ao lado de cada critério.
- * @param {string} talentId - O ID do talento na InHire.
- * @param {object} jobDetails - Detalhes da vaga para contexto.
- * @param {object} skillToEvaluate - O critério a ser avaliado.
- * @returns {Promise<{score: number, justification: string}>}
- */
+
 export const evaluateSkillFromCache = async (talentId, jobDetails, skillToEvaluate) => {
     log(`--- ORQUESTRADOR IA: Avaliando critério a partir do cache para Talento ID: ${talentId} ---`);
     try {
@@ -151,12 +142,6 @@ export const evaluateSkillFromCache = async (talentId, jobDetails, skillToEvalua
     }
 };
 
-/**
- * Função interna que se comunica com a OpenAI para avaliar um perfil.
- * @param {object} candidateProfileData - Os dados ricos extraídos do LinkedIn.
- * @param {object} jobDetails - Detalhes da vaga para contexto.
- * @param {object} skillToEvaluate - O critério a ser avaliado.
- */
 const evaluateSkillWithAI = async (candidateProfileData, jobDetails, skillToEvaluate) => {
     log(`Enviando perfil de "${candidateProfileData.name}" para análise do critério "${skillToEvaluate.name}" no contexto da vaga "${jobDetails.name}"`);
     if (!OPENAI_API_KEY) {
@@ -212,3 +197,199 @@ const evaluateSkillWithAI = async (candidateProfileData, jobDetails, skillToEval
     }
 };
 
+
+export const mapProfileToCustomFieldsWithAI = async (scrapedProfileData, customFieldDefinitions) => {
+    log(`--- ORQUESTRADOR IA: Mapeando perfil de "${scrapedProfileData.name}" para campos personalizados ---`);
+    if (!OPENAI_API_KEY) throw new Error("A chave da API da OpenAI (OPENAI_API_KEY) não está configurada no .env");
+
+    // ==========================================================
+    // PROMPT REFINADO PARA ANÁLISE HOLÍSTICA
+    // ==========================================================
+    const prompt = `
+        Você é um Tech Recruiter Sênior com uma habilidade excepcional para analisar perfis do LinkedIn. Sua tarefa é realizar uma análise profunda e holística de um dossiê de dados de um candidato (em JSON) e usar seu entendimento para preencher, da forma mais completa e precisa possível, os campos de um sistema de recrutamento (ATS).
+
+        **Dossiê do Candidato (Fonte de Evidências):**
+        Este JSON representa TUDO o que sabemos sobre o candidato. Leia-o por completo para formar um entendimento geral da pessoa. As informações podem estar em qualquer campo (headline, description, jobTitle, etc.).
+        ${JSON.stringify(scrapedProfileData, null, 2)}
+
+        **Campos do ATS a Serem Preenchidos (Destino):**
+        ${JSON.stringify(customFieldDefinitions, null, 2)}
+
+        **Sua Tarefa (Siga estritamente):**
+        1.  **Análise Contextual Profunda:** NÃO FAÇA um mapeamento campo a campo. Em vez disso, leia e entenda o "Dossiê do Candidato" como um todo. Quem é essa pessoa? Qual sua senioridade? Onde ela mora? Quais são suas habilidades?
+        2.  **Busca por Evidências:** Para CADA campo no "Destino", vasculhe TODO o "Dossiê" em busca de qualquer pista ou evidência que ajude a preenchê-lo. A resposta para o campo "Nível Hierárquico" pode estar no 'jobTitle', mas também pode ser inferida a partir da 'description' ou do tempo de experiência.
+        3.  **Preenchimento Inteligente:**
+            *   **Campos de Texto:** Se o destino pede "Pretensão Salarial" e a 'description' do candidato diz "buscando oportunidades na faixa de 15k BRL", use essa informação. Se pede "Disponibilidade para mudança" e o 'headline' diz "Open to relocate", preencha "Sim".
+            *   **Campos de Seleção (select):** Com base no seu entendimento holístico, escolha a OPÇÃO EXATA da lista 'options' que melhor representa o candidato. Por exemplo, para "Nível Hierárquico", considere o cargo, as responsabilidades descritas e o tempo de carreira. O valor retornado DEVE ser o objeto completo da opção (ex: { "id": "...", "value": "Sênior", "label": "Sênior" }).
+            *   **Inferência Lógica:** Infira o gênero a partir do primeiro nome. Calcule o tempo total de experiência se possível.
+        4.  **Regra de Ouro - Sem Invenções:** A precisão é crucial. Se, após analisar todo o dossiê, você não encontrar NENHUMA evidência (direta ou indireta) para preencher um campo, retorne 'null' para o valor daquele campo.
+
+        **Formato OBRIGATÓRIO da Resposta:**
+        Responda APENAS com um objeto JSON válido, onde as chaves são os IDs dos campos personalizados e os valores são o que você determinou.
+        Exemplo de resposta:
+        {
+          "01": "XP Inc.",
+          "03": { "id": "f054fecc-a8f5-4402-8bc5-996fc61cd7dd", "value": "Masculino", "label": "Masculino" },
+          "19": { "id": "ID_ESPECIALISTA_AQUI", "value": "Especialista", "label": "Especialista" },
+          "campo_sem_evidencia_id": null
+        }
+    `;
+    // ==========================================================
+    // FIM DO PROMPT REFINADO
+    // ==========================================================
+
+    try {
+        const response = await axios.post(OPENAI_API_URL, {
+            model: "gpt-4-turbo-preview",
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" }
+        }, {
+            headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` }
+        });
+        const result = JSON.parse(response.data.choices[0].message.content);
+        log(`IA concluiu o mapeamento holístico de campos para "${scrapedProfileData.name}".`);
+        return result;
+    } catch (err) {
+        error("Erro ao chamar a IA para mapeamento holístico de campos:", err.response?.data || err.message);
+        throw err;
+    }
+};
+
+export const mapProfileToAllFieldsWithAI = async (scrapedProfileData, customFieldDefinitions) => {
+    log(`--- ORQUESTRADOR IA: Mapeando perfil COMPLETO de "${scrapedProfileData.name}" ---`);
+    if (!OPENAI_API_KEY) throw new Error("A chave da API da OpenAI não está configurada.");
+
+    const prompt = `
+        Você é um especialista em recrutamento (Headhunter) com uma capacidade analítica sobre-humana. Sua missão é analisar um dossiê de dados brutos de um perfil do LinkedIn e preencher um formulário de cadastro de um sistema de recrutamento (ATS) com o máximo de detalhes e precisão possível.
+
+        **Dossiê do Candidato (Fonte de Evidências):**
+        Analise este JSON como um todo para entender o perfil profissional completo do candidato.
+        ${JSON.stringify(scrapedProfileData, null, 2)}
+
+        **Campos do ATS a Serem Preenchidos:**
+        1.  **Campos Gerais do Talento:**
+            -   \`location\`: (string) A cidade/estado/país do candidato.
+            -   \`company\`: (string) O nome da empresa atual.
+            -   \`jobTitle\`: (string) O cargo atual.
+            -   \`email\`: (string) O email de contato, se houver.
+            -   \`phone\`: (string) O telefone de contato, se houver.
+        2.  **Campos Personalizados da Candidatura:**
+            - A lista de campos abaixo. Para cada um, encontre a melhor resposta no dossiê.
+            ${JSON.stringify(customFieldDefinitions, null, 2)}
+
+        **Suas Instruções (Siga com precisão militar):**
+        1.  **Análise Holística:** Leia o dossiê completo primeiro. Não faça uma simples cópia de campos.
+        2.  **Preenchimento Extensivo:** Sua meta é preencher TODOS os campos possíveis (tanto Gerais quanto Personalizados) com base nas evidências do dossiê.
+        3.  **Lógica de Preenchimento:**
+            - Para campos de texto, extraia a informação diretamente.
+            - Para campos de seleção (select), analise o contexto (cargo, descrição) para escolher a opção mais adequada da lista 'options' e retorne o objeto completo da opção.
+            - Infira o gênero a partir do nome para o campo "Sexo".
+        4.  **Sem Invenções:** Se não houver evidência para um campo, omita-o do seu JSON de resposta ou retorne 'null'.
+
+        **Formato OBRIGATÓRIO da Resposta:**
+        Responda APENAS com um único objeto JSON válido. Este objeto deve conter as chaves para os campos GERAIS e uma chave "customFields" que é um objeto para os campos personalizados.
+        
+        **Exemplo de Resposta Perfeita:**
+        {
+          "location": "São Paulo, Brasil",
+          "company": "Google",
+          "jobTitle": "Engenheiro de Software Sênior",
+          "email": null,
+          "customFields": {
+            "03": { "id": "f054fecc...", "value": "Masculino", "label": "Masculino" },
+            "19": { "id": "ID_ESPECIALISTA...", "value": "Especialista", "label": "Especialista" },
+            "outro_id": "Valor encontrado na descrição"
+          }
+        }
+    `;
+
+    try {
+        const response = await axios.post(OPENAI_API_URL, {
+            model: "gpt-4-turbo-preview",
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" }
+        }, {
+            headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` }
+        });
+        const result = JSON.parse(response.data.choices[0].message.content);
+        log(`IA concluiu o mapeamento completo de campos para "${scrapedProfileData.name}".`);
+        return result;
+    } catch (err) {
+        error("Erro ao chamar a IA para mapeamento completo de campos:", err.response?.data || err.message);
+        throw err;
+    }
+};
+
+// A função antiga 'mapProfileToAllFieldsWithAI' é substituída por esta
+export const mapProfileToInhireSchemaWithAI = async (scrapedProfileData, talentFields, jobTalentFields) => {
+    log(`--- ORQUESTRADOR IA: Mapeando perfil de "${scrapedProfileData.name}" para o schema completo da InHire ---`);
+    if (!OPENAI_API_KEY) throw new Error("A chave da API da OpenAI não está configurada.");
+
+    const prompt = `
+        Você é um especialista em recrutamento e um analista de dados sênior. Sua missão é analisar um dossiê de dados brutos de um perfil do LinkedIn e preencher de forma autônoma e completa o schema de dados de um sistema de recrutamento (ATS).
+
+        **FERRAMENTA 1: Dossiê do Candidato (Fonte de Evidências)**
+        Este JSON contém todas as informações disponíveis sobre o candidato. Analise-o holisticamente.
+        ${JSON.stringify(scrapedProfileData, null, 2)}
+
+        **FERRAMENTA 2: Schema do Talento (Destino 1)**
+        Estes são os campos GERAIS disponíveis para o perfil do talento.
+        ${JSON.stringify(talentFields, null, 2)}
+
+        **FERRAMENTA 3: Schema da Candidatura (Destino 2)**
+        Estes são os campos PERSONALIZADOS específicos para uma candidatura.
+        ${JSON.stringify(jobTalentFields, null, 2)}
+
+        **SUA TAREFA (PROCESSO ANALÍTICO):**
+        1.  **Entendimento Completo:** Leia o Dossiê para entender quem é o candidato.
+        2.  **Preenchimento do Schema do Talento:** Para cada campo no "Schema do Talento", encontre a informação correspondente no Dossiê.
+        3.  **Preenchimento do Schema da Candidatura:** Para cada campo no "Schema da Candidatura", encontre a informação correspondente no Dossiê. Use sua inteligência para interpretar dados:
+            -   Se um campo personalizado for "Cargo Atual", use o 'jobTitle' do dossiê.
+            -   Para campos de seleção (select), analise o contexto (cargo, descrição) para escolher a opção mais adequada da lista 'options' e retorne o objeto completo da opção.
+            -   Infira o gênero a partir do nome.
+        4.  **Regra de Ouro:** Não invente dados. Se não houver evidência para um campo, omita-o do seu JSON de resposta.
+
+        **Formato OBRIGATÓRIO da Resposta:**
+        Responda APENAS com um único objeto JSON que tenha duas chaves principais: 'talentPayload' e 'applicationPayload'.
+        
+        **Exemplo de Resposta Perfeita:**
+        {
+          "talentPayload": {
+            "location": "São Paulo, Brasil",
+            "company": "Google"
+          },
+          "applicationPayload": {
+            "customFields": [
+              {
+                "id": "ID_DO_CAMPO_CARGO",
+                "name": "Cargo",
+                "type": "text",
+                "value": "Engenheiro de Software Sênior"
+              },
+              {
+                "id": "ID_DO_CAMPO_SEXO",
+                "name": "Sexo",
+                "type": "select",
+                "value": { "id": "f054fecc...", "value": "Masculino", "label": "Masculino" }
+              }
+            ]
+          }
+        }
+    `;
+
+    try {
+        const response = await axios.post(OPENAI_API_URL, {
+            model: "gpt-4-turbo-preview",
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" }
+        }, {
+            headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` }
+        });
+        const result = JSON.parse(response.data.choices[0].message.content);
+        log(`IA concluiu o mapeamento autônomo para "${scrapedProfileData.name}".`);
+        return result;
+    } catch (err) {
+        error("Erro ao chamar a IA para mapeamento autônomo:", err.response?.data || err.message);
+        throw err;
+    }
+};
