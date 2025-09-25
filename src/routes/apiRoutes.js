@@ -3,7 +3,6 @@
 import { Router } from 'express';
 
 import { validateProfile, handleConfirmCreation, handleEditTalent, handleDeleteTalent } from '../Core/Candidate-Flow/candidateOrchestrator.js';
-import { fetchAllJobsWithDetails, handleJobSelection, handleRemoveApplication } from '../Core/Job-Flow/jobOrchestrator.js';
 import { 
     fetchAllTalents, 
     fetchCandidatesForJob, 
@@ -23,6 +22,9 @@ import {
 } from '../Core/Evaluation-Flow/evaluationOrchestrator.js';
 
 import { syncProfileFromLinkedIn, evaluateSkillFromCache, getAIEvaluationCacheStatus, evaluateScorecardFromCache } from '../Core/AI-Flow/aiOrchestrator.js';
+
+import { fetchAllJobsWithDetails, handleJobSelection, handleRemoveApplication, fetchPaginatedJobs } from '../Core/Job-Flow/jobOrchestrator.js';
+
 
 const router = Router();
 
@@ -93,9 +95,16 @@ router.post('/ai/sync-profile', async (req, res) => {
 
 
 router.get('/jobs', async (req, res) => {
-    const result = await fetchAllJobsWithDetails();
-    if (result.success) res.status(200).json(result.jobs);
-    else res.status(500).json({ error: result.error });
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10; // Limite padrão de 10
+
+    const result = await fetchPaginatedJobs(page, limit);
+    
+    if (result.success) {
+        res.status(200).json(result.data); // Retorna o objeto de dados completo com paginação
+    } else {
+        res.status(500).json({ error: result.error });
+    }
 });
 
 router.post('/apply', async (req, res) => {

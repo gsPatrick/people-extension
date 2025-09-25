@@ -6,6 +6,52 @@ import { log, error } from '../../utils/logger.service.js';
  * Busca todas as vagas e as enriquece com suas tags.
  * @returns {Promise<{success: boolean, jobs?: Array<object>, error?: string}>}
  */
+
+export const fetchPaginatedJobs = async (page = 1, limit = 10) => {
+    log(`--- ORQUESTRADOR: Buscando vagas paginadas (Página: ${page}, Limite: ${limit}) ---`);
+    const CACHE_KEY = 'all_jobs_with_details';
+
+    try {
+        // 1. Tenta buscar do cache primeiro
+        let allJobs = getFromCache(CACHE_KEY);
+
+        // 2. Se não estiver no cache, busca da API e armazena
+        if (!allJobs) {
+            log("CACHE MISS: Vagas não encontradas no cache. Buscando da API da InHire...");
+            const jobsResult = await fetchAllJobsWithDetails(); // Reutiliza sua função existente
+            if (!jobsResult.success) {
+                throw new Error(jobsResult.error || "Falha ao buscar vagas da InHire.");
+            }
+            allJobs = jobsResult.jobs;
+            setToCache(CACHE_KEY, allJobs); // Salva a lista completa no cache
+        } else {
+            log("CACHE HIT: Vagas encontradas no cache.");
+        }
+
+        // 3. Realiza a paginação na lista completa (do cache ou recém-buscada)
+        const totalJobs = allJobs.length;
+        const totalPages = Math.ceil(totalJobs / limit);
+        const startIndex = (page - 1) * limit;
+        const endIndex = page * limit;
+        const paginatedJobs = allJobs.slice(startIndex, endIndex);
+
+        return {
+            success: true,
+            data: {
+                jobs: paginatedJobs,
+                currentPage: page,
+                totalPages: totalPages,
+                totalJobs: totalJobs
+            }
+        };
+
+    } catch (err) {
+        error("Erro em fetchPaginatedJobs:", err.message);
+        return { success: false, error: err.message };
+    }
+};
+
+
 export const fetchAllJobsWithDetails = async () => {
     log("--- ORQUESTRADOR: Buscando e enriquecendo todas as vagas ---");
     try {
