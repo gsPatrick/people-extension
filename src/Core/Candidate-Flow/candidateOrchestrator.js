@@ -1,17 +1,39 @@
 // src/Core/Candidate-Flow/candidateOrchestrator.js
 
 import { extractProfileData } from '../../Linkedin/profile.service.js';
-import { findTalent, createTalent, deleteTalent, updateTalent } from '../../Inhire/Talents/talents.service.js';
+import { createTalent, deleteTalent, updateTalent } from '../../Inhire/Talents/talents.service.js';
 import { addTalentToJob, updateApplication } from '../../Inhire/JobTalents/jobTalents.service.js';
 import { getCustomFieldsForEntity } from '../../Inhire/CustomDataManager/customDataManager.service.js';
 import { mapProfileToInhireSchemaWithAI } from '../AI-Flow/aiOrchestrator.js'; 
 import { getFromCache, setToCache } from '../../utils/cache.service.js';
+import { log, error } from '../../utils/logger.service.js';
 
-
-const TALENTS_PAGE_1_CACHE_KEY = 'talents_page_1';
+const TALENTS_CACHE_KEY = 'all_talents';
 
 /**
- * ETAPA 1 DO FLUXO: Extrai dados do perfil e VALIDA se o talento já existe na InHire.
+ * Helper para extrair o username de uma URL do LinkedIn de forma segura.
+ * Ex: "https://www.linkedin.com/in/username/" -> "username"
+ * @param {string} url - A URL do perfil.
+ * @returns {string|null} O username extraído ou null.
+ */
+const extractUsernameFromUrl = (url) => {
+    if (!url) return null;
+    try {
+        const urlObject = new URL(url);
+        const pathParts = urlObject.pathname.split('/').filter(part => part !== '');
+        if (pathParts[0] === 'in' && pathParts[1]) {
+            return pathParts[1];
+        }
+        return null;
+    } catch (e) {
+        // Fallback para URLs que não são perfeitamente formadas
+        const match = url.match(/linkedin\.com\/in\/([^/]+)/);
+        return match ? match[1] : null;
+    }
+};
+
+/**
+ * ETAPA 1 DO FLUXO: Extrai dados do perfil e VALIDA INSTANTANEAMENTE se o talento já existe no CACHE da InHire.
  */
 export const validateProfile = async (profileUrl) => {
   log(`--- ORQUESTRADOR: Iniciando VALIDAÇÃO OTIMIZADA para: ${profileUrl} ---`);
@@ -105,14 +127,15 @@ export const handleConfirmCreation = async (talentData, jobId) => {
             await updateApplication(jobTalentId, applicationPayload);
         }
         
-        // <<< ATUALIZAÇÃO DO CACHE EM TEMPO REAL >>>
-        const cachedTalentsData = getFromCache(TALENTS_PAGE_1_CACHE_KEY);
-        if (cachedTalentsData && cachedTalentsData.talents) {
-            cachedTalentsData.talents.unshift(newTalent); // Adiciona o novo talento no início da lista
-            setToCache(TALENTS_PAGE_1_CACHE_KEY, cachedTalentsData);
-            log(`CACHE UPDATE: Novo talento '${newTalent.name}' adicionado ao cache da página 1.`);
-        }
-        
+        // ATUALIZAÇÃO DO CACHE EM TEMPO REAL
+        const cachedTalents = getFromCache(TALENTS_CACHE_KEY) || [];
+        // Adiciona o novo talento ao cache para que ele apareça imediatamente.
+        // A API da InHire pode não retornar o objeto completo na criação, então montamos um objeto base.
+        const talentForCache = { id: newTalent.id, ...minimalPayload, ...talentPayload };
+        cachedTalents.unshift(talentForCache);
+        setToCache(TALENTS_CACHE_KEY, cachedTalents);
+        log(`CACHE UPDATE: Novo talento '${newTalent.name}' adicionado ao cache.`);
+
         log("Processo de criação e preenchimento autônomo concluído com sucesso.");
         return { success: true, talent: newTalent, application: application };
 
@@ -120,34 +143,33 @@ export const handleConfirmCreation = async (talentData, jobId) => {
         error("Erro em handleConfirmCreation:", err.message);
         return { success: false, error: err.message };
     }
-}
+};
 
 /**
  * Lida com a edição de dados de um talento existente.
  * @param {string} talentId - O ID do talento a ser editado.
- * @param {object} updateData - Os dados a serem atualizados no talento.
+ * @param {object} updateData - Os dados a serem atualizados no talento (ex: { name: "Novo Nome" }).
  * @returns {Promise<{success: boolean, error?: string}>}
  */
 export const handleEditTalent = async (talentId, updateData) => {
-  log(`--- ORQUESTRADOR: Editando talento ${talentId} com dados: ${JSON.stringify(updateData)} ---`);
+  log(`--- ORQUESTRADOR: Editando talento ${talentId} ---`);
   try {
     if (!talentId || !updateData) {
       throw new Error("ID do talento e dados de atualização são obrigatórios.");
     }
-    // A API de update da InHire não retorna o objeto completo, então fazemos o update primeiro
     const success = await updateTalent(talentId, updateData);
     if (!success) {
       throw new Error("Falha ao atualizar talento na InHire.");
     }
     
-    // <<< ATUALIZAÇÃO DO CACHE EM TEMPO REAL >>>
-    const cachedTalentsData = getFromCache(TALENTS_PAGE_1_CACHE_KEY);
-    if (cachedTalentsData && cachedTalentsData.talents) {
-        const index = cachedTalentsData.talents.findIndex(t => t.id === talentId);
+    // ATUALIZAÇÃO DO CACHE EM TEMPO REAL
+    const cachedTalents = getFromCache(TALENTS_CACHE_KEY);
+    if (cachedTalents) {
+        const index = cachedTalents.findIndex(t => t.id === talentId);
         if (index !== -1) {
-            // Mescla os dados antigos com os novos para manter a consistência
-            cachedTalentsData.talents[index] = { ...cachedTalentsData.talents[index], ...updateData };
-            setToCache(TALENTS_PAGE_1_CACHE_KEY, cachedTalentsData);
+            // Mescla os dados antigos com os novos para manter a consistência do objeto
+            cachedTalents[index] = { ...cachedTalents[index], ...updateData };
+            setToCache(TALENTS_CACHE_KEY, cachedTalents);
             log(`CACHE UPDATE: Talento ID '${talentId}' atualizado no cache.`);
         }
     }
@@ -164,19 +186,15 @@ export const handleDeleteTalent = async (talentId) => {
   try {
     const success = await deleteTalent(talentId);
     if (!success) {
-      return { success: false, error: "Falha ao excluir talento." };
+      throw new Error("Falha ao excluir talento.");
     }
     
-    // <<< ATUALIZAÇÃO DO CACHE EM TEMPO REAL >>>
-    const cachedTalentsData = getFromCache(TALENTS_PAGE_1_CACHE_KEY);
-    if (cachedTalentsData && cachedTalentsData.talents) {
-        const initialLength = cachedTalentsData.talents.length;
-        const updatedTalents = cachedTalentsData.talents.filter(t => t.id !== talentId);
-        if (updatedTalents.length < initialLength) {
-            cachedTalentsData.talents = updatedTalents;
-            setToCache(TALENTS_PAGE_1_CACHE_KEY, cachedTalentsData);
-            log(`CACHE UPDATE: Talento ID '${talentId}' removido do cache.`);
-        }
+    // ATUALIZAÇÃO DO CACHE EM TEMPO REAL
+    const cachedTalents = getFromCache(TALENTS_CACHE_KEY);
+    if (cachedTalents) {
+        const updatedCache = cachedTalents.filter(t => t.id !== talentId);
+        setToCache(TALENTS_CACHE_KEY, updatedCache);
+        log(`CACHE UPDATE: Talento ID '${talentId}' removido do cache.`);
     }
 
     return { success: true, message: "Talento excluído com sucesso." };
