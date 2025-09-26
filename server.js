@@ -84,7 +84,7 @@ const startServer = async () => {
   // CORREÇÃO NA ORDEM DE EXECUÇÃO
   // ==========================================================
   log('Realizando a primeira sincronização de VAGAS...');
-  //await syncJobs();
+  await syncJobs();
   log('✅ Sincronização de Vagas concluída.');
 
   log('Realizando a primeira sincronização de TALENTOS...');
