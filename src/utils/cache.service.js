@@ -1,14 +1,14 @@
 import { log } from './logger.service.js';
 
 /**
- * Serviço de cache em memória simples com Time-To-Live (TTL).
+ * Serviço de cache em memória simples.
  */
 
 const cache = new Map();
-const TTL = 5 * 60 * 1000; // 5 minutos em milissegundos
+// REMOVIDO: const TTL = 5 * 60 * 1000;
 
 /**
- * Obtém um valor do cache. Retorna null se a chave não existir ou tiver expirado.
+ * Obtém um valor do cache.
  * @param {string} key - A chave do cache.
  * @returns {any | null}
  */
@@ -20,15 +20,12 @@ export const getFromCache = (key) => {
     return null;
   }
 
-  const isExpired = (Date.now() - cachedItem.timestamp) > TTL;
-
-  if (isExpired) {
-    log(`CACHE EXPIRED: Chave "${key}" expirou. Removendo.`);
-    cache.delete(key);
-    return null;
-  }
+  // REMOVIDA A LÓGICA DE EXPIRAÇÃO
+  // const isExpired = (Date.now() - cachedItem.timestamp) > TTL;
+  // if (isExpired) { ... }
 
   log(`CACHE HIT: Retornando dados para a chave "${key}".`);
+  // Retorna diretamente os dados, sem o timestamp
   return cachedItem.data;
 };
 
@@ -40,15 +37,14 @@ export const getFromCache = (key) => {
 export const setToCache = (key, data) => {
   const item = {
     data: data,
-    timestamp: Date.now(),
+    timestamp: Date.now(), // Mantemos o timestamp para referência, se necessário
   };
   cache.set(key, item);
-  log(`CACHE SET: Dados armazenados para a chave "${key}" com TTL de ${TTL / 1000}s.`);
+  log(`CACHE SET: Dados armazenados para a chave "${key}".`);
 };
 
 /**
  * Limpa chaves do cache que começam com um prefixo específico.
- * Essencial para invalidar listas quando um item é criado/alterado.
  * @param {string} prefix - O prefixo para limpar (ex: 'talents_page_').
  */
 export const clearCacheByPrefix = (prefix) => {

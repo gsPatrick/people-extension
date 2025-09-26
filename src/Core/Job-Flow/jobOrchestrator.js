@@ -1,39 +1,36 @@
 import { getAllJobs, getJobTags } from '../../Inhire/Jobs/jobs.service.js';
 import { addTalentToJob, removeApplication } from '../../Inhire/JobTalents/jobTalents.service.js';
 import { log, error } from '../../utils/logger.service.js';
+import { getFromCache, setToCache } from '../../utils/cache.service.js';
+import { saveDebugDataToFile } from '../../utils/debug.service.js';
 
-/**
- * Busca todas as vagas e as enriquece com suas tags.
- * @returns {Promise<{success: boolean, jobs?: Array<object>, error?: string}>}
- */
+const JOBS_CACHE_KEY = 'all_jobs_with_details';
 
-export const fetchPaginatedJobs = async (page = 1, limit = 10) => {
-    log(`--- ORQUESTRADOR: Buscando vagas paginadas (Página: ${page}, Limite: ${limit}) ---`);
-    const CACHE_KEY = 'all_jobs_with_details';
-
+// ==========================================================
+// FUNÇÃO SIMPLIFICADA: AGORA APENAS LÊ DO CACHE
+// ==========================================================
+export const fetchPaginatedJobs = async (page = 1, limit = 10, status = 'open') => {
+    log(`--- ORQUESTRADOR: Servindo vagas paginadas do cache (Página: ${page}, Status: ${status}) ---`);
+    
     try {
-        // 1. Tenta buscar do cache primeiro
-        let allJobs = getFromCache(CACHE_KEY);
+        const allJobs = getFromCache(JOBS_CACHE_KEY);
 
-        // 2. Se não estiver no cache, busca da API e armazena
+        // Se o cache estiver vazio (ex: servidor acabou de iniciar), retorna uma resposta vazia.
+        // O processo de sync em segundo plano irá preenchê-lo em breve.
         if (!allJobs) {
-            log("CACHE MISS: Vagas não encontradas no cache. Buscando da API da InHire...");
-            const jobsResult = await fetchAllJobsWithDetails(); // Reutiliza sua função existente
-            if (!jobsResult.success) {
-                throw new Error(jobsResult.error || "Falha ao buscar vagas da InHire.");
-            }
-            allJobs = jobsResult.jobs;
-            setToCache(CACHE_KEY, allJobs); // Salva a lista completa no cache
-        } else {
-            log("CACHE HIT: Vagas encontradas no cache.");
+            log("AVISO: Cache de vagas ainda está vazio. Retornando lista vazia.");
+            return {
+                success: true,
+                data: { jobs: [], currentPage: 1, totalPages: 0, totalJobs: 0 }
+            };
         }
 
-        // 3. Realiza a paginação na lista completa (do cache ou recém-buscada)
-        const totalJobs = allJobs.length;
-        const totalPages = Math.ceil(totalJobs / limit);
+        const filteredJobs = allJobs.filter(job => job.status === status);
+
+        const totalJobsInFilter = filteredJobs.length;
+        const totalPages = Math.ceil(totalJobsInFilter / limit);
         const startIndex = (page - 1) * limit;
-        const endIndex = page * limit;
-        const paginatedJobs = allJobs.slice(startIndex, endIndex);
+        const paginatedJobs = filteredJobs.slice(startIndex, startIndex + limit);
 
         return {
             success: true,
@@ -41,7 +38,7 @@ export const fetchPaginatedJobs = async (page = 1, limit = 10) => {
                 jobs: paginatedJobs,
                 currentPage: page,
                 totalPages: totalPages,
-                totalJobs: totalJobs
+                totalJobs: totalJobsInFilter
             }
         };
 
@@ -51,22 +48,23 @@ export const fetchPaginatedJobs = async (page = 1, limit = 10) => {
     }
 };
 
-
+// Esta função continua sendo usada pelo processo de sync em segundo plano
 export const fetchAllJobsWithDetails = async () => {
-    log("--- ORQUESTRADOR: Buscando e enriquecendo todas as vagas ---");
+    log("--- ORQUESTRADOR (SYNC): Buscando e enriquecendo todas as vagas ---");
     try {
         const allJobs = await getAllJobs();
         if (!allJobs) {
             throw new Error("Não foi possível buscar a lista de vagas.");
         }
+        
+        saveDebugDataToFile(`all_jobs_raw_${Date.now()}.txt`, allJobs);
 
-        // Enriquecer cada vaga com suas tags
         const enrichedJobs = await Promise.all(
             allJobs.map(async (job) => {
                 const tags = await getJobTags(job.id);
                 return {
                     ...job,
-                    tags: tags || [] // Garante que a propriedade tags sempre exista
+                    tags: tags || []
                 };
             })
         );
@@ -78,6 +76,7 @@ export const fetchAllJobsWithDetails = async () => {
     }
 };
 
+// O resto das funções permanece igual
 export const handleJobSelection = async (jobId, talentId) => {
   log(`--- ORQUESTRADOR: Aplicando talento ${talentId} à vaga ${jobId} ---`);
   try {

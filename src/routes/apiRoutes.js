@@ -96,12 +96,15 @@ router.post('/ai/sync-profile', async (req, res) => {
 
 router.get('/jobs', async (req, res) => {
     const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 10; // Limite padrão de 10
+    const limit = parseInt(req.query.limit, 10) || 3; // Mantendo o limite em 3 para a UI
+    // Pega o status da query, com 'open' como padrão para a primeira carga
+    const status = req.query.status || 'open';
 
-    const result = await fetchPaginatedJobs(page, limit);
+    // Passa o status para o orquestrador
+    const result = await fetchPaginatedJobs(page, limit, status);
     
     if (result.success) {
-        res.status(200).json(result.data); // Retorna o objeto de dados completo com paginação
+        res.status(200).json(result.data);
     } else {
         res.status(500).json({ error: result.error });
     }
