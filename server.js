@@ -92,7 +92,7 @@ const startServer = async () => {
   log('✅ Sincronização de Talentos concluída.');
   
   // Agora que VAGAS E TALENTOS estão no cache, pré-carregamos os candidatos.
-  //await prefetchAllCandidates();
+  await prefetchAllCandidates();
 
   // Agenda as sincronizações futuras
   setInterval(syncJobs, 60000);
