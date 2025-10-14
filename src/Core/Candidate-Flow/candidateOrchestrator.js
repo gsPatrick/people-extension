@@ -1,6 +1,5 @@
-// src/Core/Candidate-Flow/candidateOrchestrator.js
+// COLE ESTE CÓDIGO NO ARQUIVO: src/Core/Candidate-Flow/candidateOrchestrator.js
 
-import { extractProfileData } from '../../Linkedin/profile.service.js';
 import { createTalent, deleteTalent, updateTalent } from '../../Inhire/Talents/talents.service.js';
 import { addTalentToJob, updateApplication } from '../../Inhire/JobTalents/jobTalents.service.js';
 import { getCustomFieldsForEntity } from '../../Inhire/CustomDataManager/customDataManager.service.js';
@@ -33,40 +32,31 @@ const extractUsernameFromUrl = (url) => {
 };
 
 /**
- * ETAPA 1 DO FLUXO: Extrai dados do perfil e VALIDA INSTANTANEAMENTE se o talento já existe no CACHE da InHire.
+ * ETAPA 1 DO FLUXO: VALIDA INSTANTANEAMENTE se o talento já existe no CACHE da InHire.
+ * Esta função NÃO faz mais scraping.
  */
 export const validateProfile = async (profileUrl) => {
-  log(`--- ORQUESTRADOR: Iniciando VALIDAÇÃO OTIMIZADA para: ${profileUrl} ---`);
+  log(`--- ORQUESTRADOR: Iniciando VALIDAÇÃO RÁPIDA (APENAS CACHE) para: ${profileUrl} ---`);
   try {
-    // 1. Extrai o username diretamente da URL (instantâneo).
     const usernameToSearch = extractUsernameFromUrl(profileUrl);
     if (!usernameToSearch) {
         throw new Error("Não foi possível extrair um nome de usuário válido da URL do LinkedIn.");
     }
 
-    // 2. Busca na lista de talentos já cacheada.
     const allTalentsFromCache = getFromCache(TALENTS_CACHE_KEY) || [];
     const talentInCache = allTalentsFromCache.find(t => {
         const talentUsername = t.linkedinUsername ? t.linkedinUsername.toLowerCase().replace(/\/+$/, '') : null;
         return talentUsername === usernameToSearch.toLowerCase();
     });
 
-    // 3. Se o talento for encontrado no cache, o processo para AQUI.
     if (talentInCache) {
-      log(`Validação Otimizada (CACHE HIT): Talento "${talentInCache.name}" JÁ EXISTE. Scraping evitado.`);
-      // Retornamos os dados do talento do cache, sem precisar de `profileData` do scraper.
+      log(`Validação Rápida (CACHE HIT): Talento "${talentInCache.name}" JÁ EXISTE.`);
       return { success: true, exists: true, talent: talentInCache, profileData: null };
     }
 
-    // 4. Se NÃO for encontrado, SÓ AGORA iniciamos o scraping.
-    log(`Validação Otimizada (CACHE MISS): Talento não encontrado. Iniciando scraping...`);
-    const profileData = await extractProfileData(profileUrl);
-    if (!profileData) {
-      throw new Error("O perfil não foi encontrado no cache e o scraping falhou.");
-    }
-    
-    log(`Validação Otimizada: Scraping concluído. Talento "${profileData.name}" NÃO EXISTE na base.`);
-    return { success: true, exists: false, talent: null, profileData: profileData };
+    // Se NÃO for encontrado no cache, simplesmente informa o frontend.
+    log(`Validação Rápida (CACHE MISS): Talento não encontrado na base.`);
+    return { success: true, exists: false, talent: null, profileData: null };
 
   } catch (err) {
     error("Erro em validateProfile:", err.message);
@@ -76,6 +66,7 @@ export const validateProfile = async (profileUrl) => {
 
 /**
  * ETAPA 2 DO FLUXO: Orquestração completa com MAPEAMENTO AUTÔNOMO E INTELIGENTE via IA.
+ * Esta função é chamada DEPOIS que o frontend faz o scraping e envia os dados.
  */
 export const handleConfirmCreation = async (talentData, jobId) => {
     log(`--- ORQUESTRADOR: Iniciando criação com MAPEAMENTO AUTÔNOMO para '${talentData.name}' na vaga '${jobId}' ---`);
@@ -129,8 +120,6 @@ export const handleConfirmCreation = async (talentData, jobId) => {
         
         // ATUALIZAÇÃO DO CACHE EM TEMPO REAL
         const cachedTalents = getFromCache(TALENTS_CACHE_KEY) || [];
-        // Adiciona o novo talento ao cache para que ele apareça imediatamente.
-        // A API da InHire pode não retornar o objeto completo na criação, então montamos um objeto base.
         const talentForCache = { id: newTalent.id, ...minimalPayload, ...talentPayload };
         cachedTalents.unshift(talentForCache);
         setToCache(TALENTS_CACHE_KEY, cachedTalents);
@@ -147,9 +136,6 @@ export const handleConfirmCreation = async (talentData, jobId) => {
 
 /**
  * Lida com a edição de dados de um talento existente.
- * @param {string} talentId - O ID do talento a ser editado.
- * @param {object} updateData - Os dados a serem atualizados no talento (ex: { name: "Novo Nome" }).
- * @returns {Promise<{success: boolean, error?: string}>}
  */
 export const handleEditTalent = async (talentId, updateData) => {
   log(`--- ORQUESTRADOR: Editando talento ${talentId} ---`);
@@ -167,7 +153,6 @@ export const handleEditTalent = async (talentId, updateData) => {
     if (cachedTalents) {
         const index = cachedTalents.findIndex(t => t.id === talentId);
         if (index !== -1) {
-            // Mescla os dados antigos com os novos para manter a consistência do objeto
             cachedTalents[index] = { ...cachedTalents[index], ...updateData };
             setToCache(TALENTS_CACHE_KEY, cachedTalents);
             log(`CACHE UPDATE: Talento ID '${talentId}' atualizado no cache.`);
@@ -181,6 +166,9 @@ export const handleEditTalent = async (talentId, updateData) => {
   }
 };
 
+/**
+ * Lida com a exclusão de um talento.
+ */
 export const handleDeleteTalent = async (talentId) => {
   log(`--- ORQUESTRADOR: Deletando talento ${talentId} ---`);
   try {
