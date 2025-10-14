@@ -1,33 +1,43 @@
-# --- Estágio 1: Construção da Aplicação ---
-# Usamos um espelho alternativo do Node.js (mirror.gcr.io) para evitar limite de pull do Docker Hub.
-FROM mirror.gcr.io/library/node:18-slim AS base
+# --- Estágio 1: Build ---
+# Usamos Node 20 via mirror.gcr.io para evitar limite do Docker Hub
+FROM mirror.gcr.io/library/node:20-slim AS build
 
-# Define o diretório de trabalho dentro do contêiner.
+# Diretório de trabalho
 WORKDIR /app
 
-# Instala as dependências do sistema.
-# - 'apt-get update' atualiza a lista de pacotes.
-# - 'apt-get install -y poppler-utils' instala o Poppler sem pedir confirmação.
-# - '--no-install-recommends' evita pacotes desnecessários.
-# - 'rm -rf /var/lib/apt/lists/*' limpa o cache para manter a imagem final leve.
+# Instala dependências do sistema necessárias para compilação
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        build-essential \
+        g++ \
+        make \
+        poppler-utils && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copia primeiro o package.json e package-lock.json.
-# Isso aproveita o cache do Docker — se esses arquivos não mudarem,
-# o Docker não reinstala as dependências.
+# Copia arquivos de dependências para cache de Docker
 COPY package*.json ./
 
-# Instala as dependências do Node.js.
+# Instala as dependências de produção (omit dev)
 RUN npm install --omit=dev
 
-# Copia todo o resto do código da aplicação.
+# Copia todo o código da aplicação
 COPY . .
 
-# --- Estágio 2: Execução ---
-# Expõe a porta que a aplicação utiliza (ajuste se necessário).
-EXPOSE 3000
+# --- Estágio 2: Runtime ---
+# Usamos Node 20 slim para runtime também
+FROM mirror.gcr.io/library/node:20-slim AS runtime
+WORKDIR /app
 
-# Define variáveis de ambiente úteis (ajustáveis conforme o ambiente).
+# Copia apenas o que é necessário do build
+COPY --from=build /app ./
+
+# Expõe a porta que sua aplicação usa
+EXPOSE 80
+
+# Define ambiente de produção
 ENV NODE_ENV=production
 
-# Define o comando padrão ao iniciar o contêiner.
-CMD ["node", "src/app.js"]
+# Comando padrão
+CMD ["node", "server.js"]
