@@ -1,4 +1,4 @@
-// COLE ESTE CÓDIGO NO SEU ARQUIVO: server.js
+// COLE ESTE CÓDIGO NO ARQUIVO: server.js
 
 import 'dotenv/config';
 import express from 'express';
@@ -14,12 +14,15 @@ import { initializeSessionService } from './src/Core/session.service.js';
 import { initializeAuthStorage } from './src/Inhire/Auth/authStorage.service.js';
 import { performLogin } from './src/Core/Auth-Flow/authOrchestrator.js';
 import apiRoutes from './src/routes/apiRoutes.js';
-import { initializeCache } from './src/Platform/Cache/cache.service.js'; // Alterado para o novo serviço de cache
+
+// Apenas importar o serviço de cache já inicializa o banco de dados
+import './src/Platform/Cache/cache.service.js';
+
 import { fetchAllJobsWithDetails } from './src/Core/Job-Flow/jobOrchestrator.js';
 import { fetchAllTalentsForSync, fetchCandidatesForJob } from './src/Core/management-flow/managementOrchestrator.js'; 
 import { getFromCache } from './src/utils/cache.service.js';
 import { syncEntityCache } from './src/utils/sync.service.js';
-import { createUser, findUserByEmail } from './src/Core/User-Flow/userService.js'; // Importa funções de usuário
+import { createUser, findUserByEmail } from './src/Core/User-Flow/userService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,12 +32,10 @@ const PORT = process.env.PORT || 4000;
 const JOBS_CACHE_KEY = 'all_jobs_with_details';
 const TALENTS_CACHE_KEY = 'all_talents';
 
-// Função de sincronização de vagas
+// Funções de sincronização e pré-carregamento
 const syncJobs = () => syncEntityCache(JOBS_CACHE_KEY, fetchAllJobsWithDetails);
-// Função de sincronização de talentos
 const syncTalents = () => syncEntityCache(TALENTS_CACHE_KEY, fetchAllTalentsForSync);
 
-// Função para pré-carregar candidatos
 const prefetchAllCandidates = async () => {
   log('--- PREFETCH WORKER: Iniciando pré-carregamento de todos os candidatos ---');
   const allJobs = getFromCache(JOBS_CACHE_KEY);
@@ -42,29 +43,19 @@ const prefetchAllCandidates = async () => {
     logError('PREFETCH WORKER: Não há vagas no cache para buscar candidatos. Pulando.');
     return;
   }
-
   log(`PREFETCH WORKER: Encontradas ${allJobs.length} vagas. Buscando candidatos para cada uma...`);
   const concurrencyLimit = 5;
   const batches = _.chunk(allJobs, concurrencyLimit);
-
   for (const batch of batches) {
-    await Promise.all(
-      batch.map(job => fetchCandidatesForJob(job.id))
-    );
+    await Promise.all(batch.map(job => fetchCandidatesForJob(job.id)));
     log(`PREFETCH WORKER: Lote de ${batch.length} vagas processado.`);
   }
-
   log('--- PREFETCH WORKER: Pré-carregamento de todos os candidatos concluído. ---');
 };
 
-/**
- * Garante que o usuário administrador padrão exista no banco de dados.
- * Cria o usuário se ele não for encontrado.
- */
 const seedAdminUser = async () => {
     const adminEmail = 'admin@admin.com';
     const existingAdmin = findUserByEmail(adminEmail);
-
     if (!existingAdmin) {
         log('Nenhum usuário admin encontrado. Criando um novo...');
         try {
@@ -77,7 +68,7 @@ const seedAdminUser = async () => {
             log('✅ Usuário admin criado com sucesso.');
         } catch (err) {
             logError('Falha crítica ao criar o usuário admin:', err.message);
-            process.exit(1); // Encerra o servidor se não conseguir criar o admin
+            process.exit(1);
         }
     } else {
         log('Usuário admin já existe.');
@@ -88,24 +79,24 @@ const seedAdminUser = async () => {
  * Função principal que inicializa e inicia o servidor.
  */
 const startServer = async () => {
-  // 1. Configurações básicas e síncronas
+  // 1. Configurações básicas
   configureLogger({ toFile: true });
   app.use(cors());
   app.use(express.json());
   app.use(express.static(path.join(__dirname, 'public')));
   log('--- INICIALIZAÇÃO DO SERVIDOR ---');
 
-  // 2. Inicializa serviços de plataforma (DB, Cache, etc.)
-  initializeCache(); // Inicializa o DB SQLite
+  // 2. Inicializa serviços de plataforma
+  // A inicialização do DB/Cache já aconteceu na importação acima.
   initializeSessionService(memoryStorageAdapter);
   initializeAuthStorage(memoryStorageAdapter);
-  log('✅ Serviços de cache, sessão e autenticação inicializados.');
+  log('✅ Serviços de sessão e autenticação inicializados.');
 
   // 3. Garante que o usuário admin exista
   await seedAdminUser();
   log('✅ Verificação do usuário admin concluída.');
 
-  // 4. Realiza o login na API da InHire para obter tokens de serviço
+  // 4. Realiza o login na API da InHire
   const loginResult = await performLogin();
   if (!loginResult.success) {
     logError('Falha crítica no login da InHire. O servidor não pode continuar e será encerrado.');
