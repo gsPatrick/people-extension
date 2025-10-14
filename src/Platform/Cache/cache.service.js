@@ -1,4 +1,4 @@
-// src/Platform/Cache/cache.service.js
+// COLE ESTE CÓDIGO NO ARQUIVO: src/Platform/Cache/cache.service.js
 
 import Database from 'better-sqlite3';
 import path from 'path';
@@ -8,7 +8,7 @@ import { log, error } from '../../utils/logger.service.js';
 const dbPath = path.join(process.cwd(), 'linkedin_cache.sqlite');
 const db = new Database(dbPath);
 
-// Cria as tabelas na primeira vez que o serviço é carregado, se elas não existirem
+// Cria todas as tabelas necessárias na primeira vez que o serviço é carregado
 db.exec(`
   CREATE TABLE IF NOT EXISTS profiles (
     linkedinUsername TEXT PRIMARY KEY,
@@ -16,18 +16,25 @@ db.exec(`
     lastScrapedAt INTEGER NOT NULL
   );
 
-  /* ========================================================== */
-  /* NOVA TABELA PARA ARMAZENAR OS PESOS DOS CRITÉRIOS          */
-  /* ========================================================== */
   CREATE TABLE IF NOT EXISTS interview_kit_weights (
     kit_id TEXT NOT NULL,
     skill_id TEXT NOT NULL,
     weight INTEGER NOT NULL DEFAULT 2, /* 1=Baixo, 2=Médio, 3=Alto */
     PRIMARY KEY (kit_id, skill_id)
   );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user', -- 'user' ou 'admin'
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL
+  );
 `);
 
-log('✅ Serviço de cache SQLite inicializado com sucesso.');
+log('✅ Serviço de cache e tabelas SQLite inicializados com sucesso.');
 
 /**
  * Busca um perfil no cache do SQLite.
@@ -98,3 +105,6 @@ export const getCacheStatus = (linkedinUsername) => {
         return { hasCache: false, lastScrapedAt: null };
     }
 };
+
+// Exporta a instância do banco de dados para ser usada por outros serviços
+export default db;

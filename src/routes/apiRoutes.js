@@ -1,7 +1,15 @@
-// src/Server/apiRoutes.js
+// COLE ESTE CÓDIGO NO SEU ARQUIVO: src/routes/apiRoutes.js
 
 import { Router } from 'express';
 
+// Middlewares de segurança
+import { authenticateToken, isAdmin } from '../middleware/authMiddleware.js';
+
+// Roteadores específicos
+import authRoutes from './authRoutes.js';
+import adminRoutes from './adminRoutes.js';
+
+// Orquestradores para as rotas da aplicação
 import { validateProfile, handleConfirmCreation, handleEditTalent, handleDeleteTalent } from '../Core/Candidate-Flow/candidateOrchestrator.js';
 import { 
     fetchAllTalents, 
@@ -12,33 +20,46 @@ import {
     fetchCandidateDetailsForJobContext,
     handleUpdateCustomFieldsForApplication
 } from '../Core/management-flow/managementOrchestrator.js';
-// ADICIONADO: Importar a nova função do orquestrador
 import { 
     fetchScorecardDataForApplication, 
     handleScorecardSubmission, 
     handleCreateScorecardAndKit,
     fetchInterviewKitDetails,
-    fetchAvailableKitsForJob // <<< NOVA IMPORTAÇÃO
+    fetchAvailableKitsForJob,
+    handleSaveKitWeights // <-- Importação que faltava
 } from '../Core/Evaluation-Flow/evaluationOrchestrator.js';
-
 import { syncProfileFromLinkedIn, evaluateSkillFromCache, getAIEvaluationCacheStatus, evaluateScorecardFromCache } from '../Core/AI-Flow/aiOrchestrator.js';
-
-import { fetchAllJobsWithDetails, handleJobSelection, handleRemoveApplication, fetchPaginatedJobs } from '../Core/Job-Flow/jobOrchestrator.js';
-
+import { handleJobSelection, handleRemoveApplication, fetchPaginatedJobs } from '../Core/Job-Flow/jobOrchestrator.js';
 
 const router = Router();
 
+// ==========================================================
+// 1. ROTAS PÚBLICAS (NÃO EXIGEM TOKEN)
+// ==========================================================
+router.use('/auth', authRoutes);
 
-/* ========================================================== */
-/* ROTA DE AVALIAÇÃO ATUALIZADA PARA O NOVO FLUXO             */
-/* ========================================================== */
+// ==========================================================
+// 2. MIDDLEWARE DE AUTENTICAÇÃO GLOBAL
+// Todas as rotas definidas abaixo desta linha exigirão um token JWT válido.
+// ==========================================================
+router.use(authenticateToken);
+
+// ==========================================================
+// 3. ROTAS DE ADMINISTRAÇÃO (EXIGEM TOKEN + ROLE DE ADMIN)
+// ==========================================================
+router.use('/admin', isAdmin, adminRoutes);
+
+// ==========================================================
+// 4. ROTAS DA APLICAÇÃO (AGORA PROTEGIDAS POR TOKEN)
+// ==========================================================
+
+// --- ROTAS DE IA ---
 router.post('/ai/evaluate-scorecard', async (req, res) => {
-    const { talentId, jobDetails, scorecard, weights } = req.body; // <<< 1. Extrair weights aqui
-    if (!talentId || !jobDetails || !scorecard || !weights) { // Adicionado !weights à validação
+    const { talentId, jobDetails, scorecard, weights } = req.body;
+    if (!talentId || !jobDetails || !scorecard || !weights) {
         return res.status(400).json({ error: 'Dados de talento, vaga, scorecard e pesos são obrigatórios.' });
     }
     try {
-        // <<< 2. Passar os weights para o orquestrador >>>
         const result = await evaluateScorecardFromCache(talentId, jobDetails, scorecard, weights);
         res.status(200).json(result);
     } catch (err) {
@@ -46,8 +67,6 @@ router.post('/ai/evaluate-scorecard', async (req, res) => {
     }
 });
 
-
-// <<< NOVA ROTA PARA VERIFICAR O CACHE >>>
 router.get('/ai/cache-status/:talentId', async (req, res) => {
     const { talentId } = req.params;
     try {
@@ -58,9 +77,7 @@ router.get('/ai/cache-status/:talentId', async (req, res) => {
     }
 });
 
-// <<< ATUALIZAR ROTA DE AVALIAÇÃO >>>
 router.post('/ai/evaluate-skill', async (req, res) => {
-    // Agora usa a função 'evaluateSkillFromCache'
     const { talentId, jobDetails, skillToEvaluate } = req.body;
     if (!talentId || !jobDetails || !skillToEvaluate) {
         return res.status(400).json({ error: 'Dados de talento, vaga e critério são obrigatórios.' });
@@ -73,7 +90,6 @@ router.post('/ai/evaluate-skill', async (req, res) => {
     }
 });
 
-// <<< NOVA ROTA PARA SINCRONIZAR >>>
 router.post('/ai/sync-profile', async (req, res) => {
     const { talentId } = req.body;
     if (!talentId) {
@@ -87,27 +103,14 @@ router.post('/ai/sync-profile', async (req, res) => {
     }
 });
 
-
-// ===================================
-// ROTAS DE VAGAS E CANDIDATURAS
-// ===================================
-
-
-
+// --- ROTAS DE VAGAS E CANDIDATURAS ---
 router.get('/jobs', async (req, res) => {
     const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 3; // Mantendo o limite em 3 para a UI
-    // Pega o status da query, com 'open' como padrão para a primeira carga
+    const limit = parseInt(req.query.limit, 10) || 3;
     const status = req.query.status || 'open';
-
-    // Passa o status para o orquestrador
     const result = await fetchPaginatedJobs(page, limit, status);
-    
-    if (result.success) {
-        res.status(200).json(result.data);
-    } else {
-        res.status(500).json({ error: result.error });
-    }
+    if (result.success) res.status(200).json(result.data);
+    else res.status(500).json({ error: result.error });
 });
 
 router.post('/apply', async (req, res) => {
@@ -125,10 +128,7 @@ router.delete('/applications/:id', async (req, res) => {
     else res.status(500).json({ error: result.error });
 });
 
-// ===================================
-// ROTAS DE CANDIDATO E PERFIL
-// ===================================
-
+// --- ROTAS DE CANDIDATO E PERFIL ---
 router.post('/validate-profile', async (req, res) => {
   const { profileUrl } = req.body;
   if (!profileUrl) return res.status(400).json({ error: 'O campo "profileUrl" é obrigatório.' });
@@ -144,10 +144,7 @@ router.post('/create-talent', async (req, res) => {
   else res.status(500).json({ error: result.error });
 });
 
-// ===================================
-// ROTAS DE GERENCIAMENTO (TALENTOS)
-// ===================================
-
+// --- ROTAS DE GERENCIAMENTO (TALENTOS) ---
 router.get('/talents', async (req, res) => {
     const limit = req.query.limit ? parseInt(req.query.limit, 10) : 20;
     let exclusiveStartKey = null;
@@ -181,10 +178,7 @@ router.delete('/talents/:id', async (req, res) => {
     else res.status(500).json({ error: result.error });
 });
 
-// ===================================
-// ROTAS DE GERENCIAMENTO (VAGAS E CANDIDATURAS)
-// ===================================
-
+// --- ROTAS DE GERENCIAMENTO (VAGAS E CANDIDATURAS) ---
 router.get('/jobs/:jobId/candidates', async (req, res) => {
     const { jobId } = req.params;
     const result = await fetchCandidatesForJob(jobId);
@@ -211,23 +205,15 @@ router.patch('/applications/:applicationId/status', async (req, res) => {
 router.patch('/applications/:applicationId/custom-fields', async (req, res) => {
     const { applicationId } = req.params;
     const { customFields } = req.body;
-    
     if (!Array.isArray(customFields)) {
         return res.status(400).json({ error: 'O campo "customFields" deve ser um array.' });
     }
     const result = await handleUpdateCustomFieldsForApplication(applicationId, customFields);
-    
-    if (result.success) {
-        res.status(200).json(result.application);
-    } else {
-        res.status(500).json({ error: result.error });
-    }
+    if (result.success) res.status(200).json(result.application);
+    else res.status(500).json({ error: result.error });
 });
 
-// ===================================
-// ROTAS DE SCORECARD
-// ===================================
-
+// --- ROTAS DE SCORECARD ---
 router.get('/scorecard-data/application/:applicationId/job/:jobId', async (req, res) => {
     const { applicationId, jobId } = req.params;
     const result = await fetchScorecardDataForApplication(applicationId, jobId);
@@ -235,13 +221,10 @@ router.get('/scorecard-data/application/:applicationId/job/:jobId', async (req, 
     else res.status(500).json({ error: result.error });
 });
 
-// ==========================================================
-// NOVA ROTA PARA BUSCAR KITS
-// ==========================================================
 router.get('/jobs/:jobId/interview-kits', async (req, res) => {
     const { jobId } = req.params;
     const result = await fetchAvailableKitsForJob(jobId);
-    if (result.success) res.status(200).json(result.kits); // Retorna o array de kits diretamente
+    if (result.success) res.status(200).json(result.kits);
     else res.status(500).json({ error: result.error });
 });
 
@@ -257,10 +240,7 @@ router.post('/create-scorecard-and-kit', async (req, res) => {
     else res.status(500).json({ error: result.error });
 });
 
-// ===================================
-// ROTAS DE GERENCIAMENTO (CAMPOS PERSONALIZADOS E KITS)
-// ===================================
-
+// --- ROTAS DE GERENCIAMENTO (CAMPOS PERSONALIZADOS E KITS) ---
 router.get('/custom-fields/:entity', async (req, res) => {
     const { entity } = req.params;
     if (!['TALENTS', 'JOB_TALENTS'].includes(entity.toUpperCase())) {
@@ -278,9 +258,6 @@ router.get('/interview-kit/:kitId', async (req, res) => {
     else res.status(404).json({ error: result.error });
 });
 
-/* ========================================================== */
-/* NOVA ROTA PARA SALVAR OS PESOS DE UM KIT                   */
-/* ========================================================== */
 router.post('/interview-kit/:kitId/weights', async (req, res) => {
     const { kitId } = req.params;
     const { weights } = req.body;
@@ -288,11 +265,8 @@ router.post('/interview-kit/:kitId/weights', async (req, res) => {
         return res.status(400).json({ error: 'O campo "weights" é obrigatório.' });
     }
     const result = await handleSaveKitWeights(kitId, weights);
-    if (result.success) {
-        res.status(200).json({ message: 'Pesos salvos com sucesso.' });
-    } else {
-        res.status(500).json({ error: result.error });
-    }
+    if (result.success) res.status(200).json({ message: 'Pesos salvos com sucesso.' });
+    else res.status(500).json({ error: result.error });
 });
 
 export default router;
