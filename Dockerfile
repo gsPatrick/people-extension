@@ -1,11 +1,8 @@
-# --- Estágio 1: Build ---
-# Usamos Node 20 via mirror.gcr.io para evitar limite do Docker Hub
 FROM mirror.gcr.io/library/node:20-slim AS build
 
-# Diretório de trabalho
 WORKDIR /app
 
-# Instala dependências do sistema necessárias para compilação
+# Dependências do sistema
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         python3 \
@@ -16,28 +13,22 @@ RUN apt-get update && \
         poppler-utils && \
     rm -rf /var/lib/apt/lists/*
 
-# Copia arquivos de dependências para cache de Docker
+# Copia somente package.json / package-lock.json
 COPY package*.json ./
 
-# Instala as dependências de produção (omit dev)
+# Instala as dependências dentro do container
 RUN npm install --omit=dev
 
-# Copia todo o código da aplicação
+# Copia o restante do código
 COPY . .
 
-# --- Estágio 2: Runtime ---
-# Usamos Node 20 slim para runtime também
+# Runtime stage
 FROM mirror.gcr.io/library/node:20-slim AS runtime
 WORKDIR /app
 
-# Copia apenas o que é necessário do build
+# Copia app + node_modules do build stage
 COPY --from=build /app ./
 
-# Expõe a porta que sua aplicação usa
 EXPOSE 80
-
-# Define ambiente de produção
 ENV NODE_ENV=production
-
-# Comando padrão
 CMD ["node", "server.js"]
