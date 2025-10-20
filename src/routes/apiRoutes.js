@@ -28,6 +28,7 @@ import {
 } from '../Core/Evaluation-Flow/evaluationOrchestrator.js';
 import { syncProfileFromLinkedIn, evaluateSkillFromCache, getAIEvaluationCacheStatus, evaluateScorecardFromCache } from '../Core/AI-Flow/aiOrchestrator.js';
 import { handleJobSelection, handleRemoveApplication, fetchPaginatedJobs } from '../Core/Job-Flow/jobOrchestrator.js';
+import { handleFullProfileUpdate } from '../Core/Candidate-Flow/updateOrchestrator.js';
 
 const router = Router();
 
@@ -74,6 +75,27 @@ router.get('/ai/cache-status/:talentId', async (req, res) => {
         res.status(500).json({ error: `Falha ao verificar status do cache: ${err.message}` });
     }
 });
+
+// ==========================================================
+// NOVA ROTA PARA ATUALIZAÇÃO COMPLETA DE PERFIL
+// ==========================================================
+router.post('/update-full-profile', async (req, res) => {
+    const { talentId, applicationId, scrapedData } = req.body;
+    if (!talentId || !applicationId || !scrapedData) {
+        return res.status(400).json({ error: 'Os campos talentId, applicationId e scrapedData são obrigatórios.' });
+    }
+    try {
+        const result = await handleFullProfileUpdate(talentId, applicationId, scrapedData);
+        if (result.success) {
+            res.status(200).json(result);
+        } else {
+            throw new Error(result.error);
+        }
+    } catch (err) {
+        res.status(500).json({ error: `Falha ao orquestrar a atualização do perfil: ${err.message}` });
+    }
+});
+
 
 router.post('/ai/sync-profile', async (req, res) => {
     const { talentId } = req.body;
