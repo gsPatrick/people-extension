@@ -3,6 +3,25 @@ import { getFromCache, setToCache } from './cache.service.js';
 import { log, error as logError } from './logger.service.js';
 
 /**
+ * Cria um mapa de consulta otimizado para a busca de talentos por username.
+ * @param {Array} talentList - A lista de talentos.
+ * @returns {Map<string, object>} Um mapa onde a chave é o username do LinkedIn e o valor é o objeto do talento.
+ */
+const createTalentLookupMap = (talentList) => {
+    const lookupMap = new Map();
+    if (!Array.isArray(talentList)) return lookupMap;
+
+    for (const talent of talentList) {
+        if (talent.linkedinUsername) {
+            const normalizedUsername = talent.linkedinUsername.toLowerCase().replace(/\/+$/, '');
+            lookupMap.set(normalizedUsername, talent);
+        }
+    }
+    return lookupMap;
+};
+
+
+/**
  * Realiza uma sincronização diferencial inteligente para uma entidade no cache.
  * Compara a lista nova com a antiga e aplica apenas as diferenças.
  * @param {string} cacheKey A chave do cache a ser sincronizada.
@@ -24,6 +43,13 @@ export const syncEntityCache = async (cacheKey, fetchFunction) => {
     if (oldList.length === 0) {
       setToCache(cacheKey, newList);
       log(`SYNC SERVICE (${cacheKey}): Cache inicializado com ${newList.length} itens.`);
+      
+      // Cria o mapa de consulta para talentos na primeira carga.
+      if (cacheKey === 'all_talents') {
+        const talentMap = createTalentLookupMap(newList);
+        setToCache('talent_lookup_map', talentMap);
+        log(`SYNC SERVICE: Mapa de consulta de talentos (talent_lookup_map) criado com ${talentMap.size} entradas.`);
+      }
       return;
     }
 
@@ -64,6 +90,14 @@ export const syncEntityCache = async (cacheKey, fetchFunction) => {
     if (added > 0 || updated > 0 || removed > 0) {
       setToCache(cacheKey, final_list);
       log(`SYNC SERVICE (${cacheKey}): Sincronização concluída. Adicionados: ${added}, Atualizados: ${updated}, Removidos: ${removed}. Total: ${final_list.length} itens.`);
+
+      // Recria o mapa de consulta se houver qualquer alteração nos talentos.
+      if (cacheKey === 'all_talents') {
+        const talentMap = createTalentLookupMap(final_list);
+        setToCache('talent_lookup_map', talentMap);
+        log(`SYNC SERVICE: Mapa de consulta de talentos (talent_lookup_map) ATUALIZADO com ${talentMap.size} entradas.`);
+      }
+
     } else {
       log(`SYNC SERVICE (${cacheKey}): Nenhuma mudança detectada. Cache está atualizado.`);
     }
