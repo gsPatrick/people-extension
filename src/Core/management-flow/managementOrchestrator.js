@@ -210,19 +210,22 @@ export const fetchAllTalentsForSync = async () => {
 };
 
 // ==========================================================
-// CORREÇÃO: Esta função agora serve dados paginados do CACHE.
+// CORREÇÃO: Lógica de paginação robusta
 // ==========================================================
-export const fetchAllTalents = async (page = 1, limit = 10, filters = {}) => {
-    log(`--- ORQUESTRADOR: Servindo talentos paginados do cache (Página: ${page}, Filtros: ${JSON.stringify(filters)}) ---`);
+export const fetchAllTalents = async (pageParam, limitParam, filters = {}) => {
+    // 1. Garantir que page e limit sejam números válidos
+    const page = parseInt(pageParam, 10) || 1;
+    const limit = parseInt(limitParam, 10) || 10;
+
+    log(`--- ORQUESTRADOR: Servindo talentos paginados do cache (Página: ${page}, Limite: ${limit}, Filtros: ${JSON.stringify(filters)}) ---`);
     try {
         const allTalents = getFromCache(TALENTS_CACHE_KEY);
         if (!allTalents) {
             log("AVISO: Cache de talentos ainda está vazio. Retornando lista vazia.");
-            return { success: true, data: { talents: [], currentPage: 1, totalPages: 0, totalTalents: 0 } };
+            return { success: true, data: { talents: [], currentPage: 1, totalPages: 1, totalTalents: 0 } };
         }
 
         let filteredTalents = allTalents;
-        // Aplica filtro de busca por termo
         if (filters.searchTerm) {
             const term = filters.searchTerm.toLowerCase();
             filteredTalents = filteredTalents.filter(t =>
@@ -232,8 +235,11 @@ export const fetchAllTalents = async (page = 1, limit = 10, filters = {}) => {
         }
 
         const totalTalentsInFilter = filteredTalents.length;
-        const totalPages = Math.ceil(totalTalentsInFilter / limit);
+        // 2. Cálculo correto de totalPages, tratando o caso de 0 talentos
+        const totalPages = totalTalentsInFilter > 0 ? Math.ceil(totalTalentsInFilter / limit) : 1;
         const startIndex = (page - 1) * limit;
+        
+        // 3. O `slice` lida com `startIndex` fora dos limites, retornando array vazio, o que é o comportamento esperado.
         const paginatedTalents = filteredTalents.slice(startIndex, startIndex + limit);
 
         return {

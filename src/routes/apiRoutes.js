@@ -1,5 +1,3 @@
-// COLE ESTE CÓDIGO NO SEU ARQUIVO: src/routes/apiRoutes.js
-
 import { Router } from 'express';
 
 // Middlewares de segurança
@@ -26,7 +24,7 @@ import {
     handleCreateScorecardAndKit,
     fetchInterviewKitDetails,
     fetchAvailableKitsForJob,
-    handleSaveKitWeights // <-- Importação que faltava
+    handleSaveKitWeights
 } from '../Core/Evaluation-Flow/evaluationOrchestrator.js';
 import { syncProfileFromLinkedIn, evaluateSkillFromCache, getAIEvaluationCacheStatus, evaluateScorecardFromCache } from '../Core/AI-Flow/aiOrchestrator.js';
 import { handleJobSelection, handleRemoveApplication, fetchPaginatedJobs } from '../Core/Job-Flow/jobOrchestrator.js';
@@ -106,7 +104,7 @@ router.post('/ai/sync-profile', async (req, res) => {
 // --- ROTAS DE VAGAS E CANDIDATURAS ---
 router.get('/jobs', async (req, res) => {
     const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 3;
+    const limit = parseInt(req.query.limit, 10) || 10;
     const status = req.query.status || 'open';
     const result = await fetchPaginatedJobs(page, limit, status);
     if (result.success) res.status(200).json(result.data);
@@ -146,15 +144,17 @@ router.post('/create-talent', async (req, res) => {
 
 // --- ROTAS DE GERENCIAMENTO (TALENTOS) ---
 router.get('/talents', async (req, res) => {
-    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 20;
-    let exclusiveStartKey = null;
-    if (req.query.nextPageKey) {
-        try { exclusiveStartKey = JSON.parse(req.query.nextPageKey); } 
-        catch (e) { return res.status(400).json({ error: "Parâmetro 'nextPageKey' inválido." }); }
+    // Extrai page, limit e quaisquer outros filtros da query string
+    const { page, limit, searchTerm } = req.query;
+    
+    // O orquestrador já tem valores padrão, mas é bom passar o que recebemos
+    const result = await fetchAllTalents(page, limit, { searchTerm });
+    
+    if (result.success) {
+        res.status(200).json(result); // Envia o objeto completo { success: true, data: {...} }
+    } else {
+        res.status(500).json({ error: result.error });
     }
-    const result = await fetchAllTalents(limit, exclusiveStartKey);
-    if (result.success) res.status(200).json(result);
-    else res.status(500).json({ error: result.error });
 });
 
 router.get('/talents/:id', async (req, res) => {
