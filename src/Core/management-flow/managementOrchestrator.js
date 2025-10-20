@@ -1,4 +1,4 @@
-// src/Core/management-flow/managementOrchestrator.js
+// COLE ESTE CÓDIGO ATUALIZADO NO ARQUIVO: src/Core/management-flow/managementOrchestrator.js
 
 import { getAllTalentsPaginated, getTalentById } from '../../Inhire/Talents/talents.service.js';
 import { getApplicationsForJob, updateApplication, getJobTalent } from '../../Inhire/JobTalents/jobTalents.service.js';
@@ -7,6 +7,8 @@ import { log, error } from '../../utils/logger.service.js';
 import { saveDebugDataToFile } from '../../utils/debug.service.js';
 import { getCustomFieldsForEntity } from '../../Inhire/CustomDataManager/customDataManager.service.js';
 import { getFromCache, setToCache } from '../../utils/cache.service.js';
+
+const TALENTS_CACHE_KEY = 'all_talents';
 
 export const fetchCandidatesForJob = async (jobId) => {
     const CACHE_KEY = `candidates_for_job_${jobId}`;
@@ -178,9 +180,6 @@ export const fetchCandidateDetailsForJobContext = async (jobId, talentId) => {
     }
 };
 
-// ==========================================================
-// FUNÇÃO QUE ESTAVA FALTANDO
-// ==========================================================
 export const fetchAllTalentsForSync = async () => {
     log("--- ORQUESTRADOR (SYNC): Buscando TODOS os talentos com paginação interna ---");
     try {
@@ -210,20 +209,44 @@ export const fetchAllTalentsForSync = async () => {
     }
 };
 
-export const fetchAllTalents = async (limit, exclusiveStartKey) => {
-    log("--- ORQUESTRADOR: Buscando uma página de talentos ---");
+// ==========================================================
+// CORREÇÃO: Esta função agora serve dados paginados do CACHE.
+// ==========================================================
+export const fetchAllTalents = async (page = 1, limit = 10, filters = {}) => {
+    log(`--- ORQUESTRADOR: Servindo talentos paginados do cache (Página: ${page}, Filtros: ${JSON.stringify(filters)}) ---`);
     try {
-        const response = await getAllTalentsPaginated(limit, exclusiveStartKey);
-        if (!response) throw new Error("A API falhou ao buscar talentos.");
-        return { 
-            success: true, 
+        const allTalents = getFromCache(TALENTS_CACHE_KEY);
+        if (!allTalents) {
+            log("AVISO: Cache de talentos ainda está vazio. Retornando lista vazia.");
+            return { success: true, data: { talents: [], currentPage: 1, totalPages: 0, totalTalents: 0 } };
+        }
+
+        let filteredTalents = allTalents;
+        // Aplica filtro de busca por termo
+        if (filters.searchTerm) {
+            const term = filters.searchTerm.toLowerCase();
+            filteredTalents = filteredTalents.filter(t =>
+                t.name?.toLowerCase().includes(term) ||
+                t.headline?.toLowerCase().includes(term)
+            );
+        }
+
+        const totalTalentsInFilter = filteredTalents.length;
+        const totalPages = Math.ceil(totalTalentsInFilter / limit);
+        const startIndex = (page - 1) * limit;
+        const paginatedTalents = filteredTalents.slice(startIndex, startIndex + limit);
+
+        return {
+            success: true,
             data: {
-                talents: response.items,
-                exclusiveStartKey: response.exclusiveStartKey 
+                talents: paginatedTalents,
+                currentPage: page,
+                totalPages: totalPages,
+                totalTalents: totalTalentsInFilter
             }
         };
     } catch (err) {
-        error("Erro em fetchAllTalents:", err.message);
+        error("Erro em fetchAllTalents (cache):", err.message);
         return { success: false, error: err.message };
     }
 };

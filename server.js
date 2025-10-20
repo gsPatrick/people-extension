@@ -1,4 +1,4 @@
-// COLE ESTE CÓDIGO NO ARQUIVO: server.js
+// COLE ESTE CÓDIGO ATUALIZADO NO ARQUIVO: server.js
 
 import 'dotenv/config';
 import express from 'express';
@@ -15,7 +15,6 @@ import { initializeAuthStorage } from './src/Inhire/Auth/authStorage.service.js'
 import { performLogin } from './src/Core/Auth-Flow/authOrchestrator.js';
 import apiRoutes from './src/routes/apiRoutes.js';
 
-// Apenas importar o serviço de cache já inicializa o banco de dados
 import './src/Platform/Cache/cache.service.js';
 
 import { fetchAllJobsWithDetails } from './src/Core/Job-Flow/jobOrchestrator.js';
@@ -75,28 +74,20 @@ const seedAdminUser = async () => {
     }
 };
 
-/**
- * Função principal que inicializa e inicia o servidor.
- */
 const startServer = async () => {
-  // 1. Configurações básicas
   configureLogger({ toFile: true });
   app.use(cors());
   app.use(express.json());
   app.use(express.static(path.join(__dirname, 'public')));
   log('--- INICIALIZAÇÃO DO SERVIDOR ---');
 
-  // 2. Inicializa serviços de plataforma
-  // A inicialização do DB/Cache já aconteceu na importação acima.
   initializeSessionService(memoryStorageAdapter);
   initializeAuthStorage(memoryStorageAdapter);
   log('✅ Serviços de sessão e autenticação inicializados.');
 
-  // 3. Garante que o usuário admin exista
   await seedAdminUser();
   log('✅ Verificação do usuário admin concluída.');
 
-  // 4. Realiza o login na API da InHire
   const loginResult = await performLogin();
   if (!loginResult.success) {
     logError('Falha crítica no login da InHire. O servidor não pode continuar e será encerrado.');
@@ -104,7 +95,6 @@ const startServer = async () => {
   }
   log('✅ Login na API da InHire bem-sucedido.');
 
-  // 5. Sincronização inicial de dados
   log('Realizando a primeira sincronização de VAGAS...');
   await syncJobs();
   log('✅ Sincronização de Vagas concluída.');
@@ -113,23 +103,24 @@ const startServer = async () => {
   await syncTalents();
   log('✅ Sincronização de Talentos concluída.');
   
-  // 6. Pré-carregamento de dados derivados
-  await prefetchAllCandidates();
-
-  // 7. Agendamento de tarefas recorrentes
-  setInterval(syncJobs, 60000);
-  setInterval(syncTalents, 60000);
-  log('🔄 Sincronização periódica de Vagas e Talentos agendada a cada 60 segundos.');
-
-  // 8. Configura rotas da API
+  // ==========================================================
+  // CORREÇÃO: Inicia o servidor PRIMEIRO e depois roda o prefetch.
+  // ==========================================================
   app.use('/api', apiRoutes);
   log('✅ Rotas da API configuradas.');
 
-  // 9. Inicia o servidor
   app.listen(PORT, () => {
     log(`🚀 Servidor rodando e ouvindo na porta ${PORT}`);
+    
+    // Inicia o prefetch em segundo plano APÓS o servidor estar no ar.
+    log('Iniciando pré-carregamento de candidatos em segundo plano...');
+    prefetchAllCandidates().catch(err => logError("Erro durante o pré-carregamento em segundo plano:", err));
   });
+
+  // Agendamento de tarefas recorrentes
+  setInterval(syncJobs, 60000);
+  setInterval(syncTalents, 60000);
+  log('🔄 Sincronização periódica de Vagas e Talentos agendada a cada 60 segundos.');
 };
 
-// Inicia todo o processo
 startServer();

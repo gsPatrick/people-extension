@@ -1,3 +1,5 @@
+// COLE ESTE CÓDIGO ATUALIZADO NO ARQUIVO: src/Core/Job-Flow/jobOrchestrator.js
+
 import { getAllJobs, getJobTags } from '../../Inhire/Jobs/jobs.service.js';
 import { addTalentToJob, removeApplication } from '../../Inhire/JobTalents/jobTalents.service.js';
 import { log, error } from '../../utils/logger.service.js';
@@ -7,37 +9,36 @@ import { saveDebugDataToFile } from '../../utils/debug.service.js';
 const JOBS_CACHE_KEY = 'all_jobs_with_details';
 
 // ==========================================================
-// FUNÇÃO SIMPLIFICADA: AGORA APENAS LÊ DO CACHE
+// CORREÇÃO: Função modificada para remover a lógica de paginação
+// e retornar sempre a lista completa de vagas filtradas.
 // ==========================================================
 export const fetchPaginatedJobs = async (page = 1, limit = 10, status = 'open') => {
-    log(`--- ORQUESTRADOR: Servindo vagas paginadas do cache (Página: ${page}, Status: ${status}) ---`);
+    log(`--- ORQUESTRADOR: Servindo TODAS as vagas do cache (Status: ${status}) ---`);
     
     try {
         const allJobs = getFromCache(JOBS_CACHE_KEY);
 
-        // Se o cache estiver vazio (ex: servidor acabou de iniciar), retorna uma resposta vazia.
-        // O processo de sync em segundo plano irá preenchê-lo em breve.
         if (!allJobs) {
             log("AVISO: Cache de vagas ainda está vazio. Retornando lista vazia.");
             return {
                 success: true,
-                data: { jobs: [], currentPage: 1, totalPages: 0, totalJobs: 0 }
+                data: { jobs: [], currentPage: 1, totalPages: 1, totalJobs: 0 }
             };
         }
 
         const filteredJobs = allJobs.filter(job => job.status === status);
 
         const totalJobsInFilter = filteredJobs.length;
-        const totalPages = Math.ceil(totalJobsInFilter / limit);
-        const startIndex = (page - 1) * limit;
-        const paginatedJobs = filteredJobs.slice(startIndex, startIndex + limit);
 
+        // A resposta agora sempre contém todas as vagas filtradas.
+        // As chaves de paginação são mantidas para não quebrar o frontend,
+        // mas sempre indicarão uma única página.
         return {
             success: true,
             data: {
-                jobs: paginatedJobs,
-                currentPage: page,
-                totalPages: totalPages,
+                jobs: filteredJobs,
+                currentPage: 1,
+                totalPages: 1,
                 totalJobs: totalJobsInFilter
             }
         };
@@ -54,7 +55,7 @@ export const fetchAllJobsWithDetails = async () => {
     try {
         const allJobs = await getAllJobs();
         if (!allJobs) {
-            throw new Error("Não foi possível buscar a lista de vagas.");
+            throw new Error("Não foi possível buscar la lista de vagas.");
         }
         
         saveDebugDataToFile(`all_jobs_raw_${Date.now()}.txt`, allJobs);
