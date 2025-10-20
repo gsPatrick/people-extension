@@ -75,19 +75,6 @@ router.get('/ai/cache-status/:talentId', async (req, res) => {
     }
 });
 
-router.post('/ai/evaluate-skill', async (req, res) => {
-    const { talentId, jobDetails, skillToEvaluate } = req.body;
-    if (!talentId || !jobDetails || !skillToEvaluate) {
-        return res.status(400).json({ error: 'Dados de talento, vaga e critério são obrigatórios.' });
-    }
-    try {
-        const result = await evaluateSkillFromCache(talentId, jobDetails, skillToEvaluate);
-        res.status(200).json(result);
-    } catch (err) {
-        res.status(500).json({ error: `Falha ao processar avaliação com IA: ${err.message}` });
-    }
-});
-
 router.post('/ai/sync-profile', async (req, res) => {
     const { talentId } = req.body;
     if (!talentId) {
@@ -103,9 +90,7 @@ router.post('/ai/sync-profile', async (req, res) => {
 
 // --- ROTAS DE VAGAS E CANDIDATURAS ---
 router.get('/jobs', async (req, res) => {
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 10;
-    const status = req.query.status || 'open';
+    const { page, limit, status } = req.query;
     const result = await fetchPaginatedJobs(page, limit, status);
     if (result.success) res.status(200).json(result.data);
     else res.status(500).json({ error: result.error });
@@ -144,14 +129,10 @@ router.post('/create-talent', async (req, res) => {
 
 // --- ROTAS DE GERENCIAMENTO (TALENTOS) ---
 router.get('/talents', async (req, res) => {
-    // Extrai page, limit e quaisquer outros filtros da query string
     const { page, limit, searchTerm } = req.query;
-    
-    // O orquestrador já tem valores padrão, mas é bom passar o que recebemos
     const result = await fetchAllTalents(page, limit, { searchTerm });
-    
     if (result.success) {
-        res.status(200).json(result); // Envia o objeto completo { success: true, data: {...} }
+        res.status(200).json(result);
     } else {
         res.status(500).json({ error: result.error });
     }
@@ -254,8 +235,12 @@ router.get('/custom-fields/:entity', async (req, res) => {
 router.get('/interview-kit/:kitId', async (req, res) => {
     const { kitId } = req.params;
     const result = await fetchInterviewKitDetails(kitId);
-    if (result.success) res.status(200).json(result.kit);
-    else res.status(404).json({ error: result.error });
+    // Agora a resposta sempre terá um objeto com a chave 'success'
+    if (result.success) {
+        res.status(200).json(result); // Envia { success: true, kit: ... }
+    } else {
+        res.status(404).json({ success: false, error: result.error });
+    }
 });
 
 router.post('/interview-kit/:kitId/weights', async (req, res) => {
