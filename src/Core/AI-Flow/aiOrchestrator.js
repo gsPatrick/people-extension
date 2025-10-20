@@ -29,26 +29,6 @@ export const syncProfileFromLinkedIn = async (talentId) => {
     }
 };
 
-const callOpenAI = async (prompt, model) => {
-    if (!OPENAI_API_KEY) {
-        throw new Error("A chave da API da OpenAI (OPENAI_API_KEY) não está configurada no .env");
-    }
-    try {
-        const response = await axios.post(OPENAI_API_URL, {
-            model: model,
-            messages: [{ role: "user", content: prompt }],
-            response_format: { type: "json_object" }
-        }, {
-            headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` }
-        });
-        return JSON.parse(response.data.choices[0].message.content);
-    } catch (err) {
-        // Log detalhado do erro da OpenAI
-        error(`Erro ao chamar a API da OpenAI com o modelo ${model}:`, err.response?.data || err.message);
-        throw new Error(err.response?.data?.error?.message || err.message);
-    }
-};
-
 export const evaluateScorecardFromCache = async (talentId, jobDetails, scorecard, weights) => {
     log(`--- ORQUESTRADOR IA: Avaliando SCORECARD COMPLETO para Talento ID: ${talentId} ---`);
     try {
@@ -68,36 +48,70 @@ export const evaluateScorecardFromCache = async (talentId, jobDetails, scorecard
 };
 
 const evaluateEntireScorecardWithAI = async (candidateProfileData, jobDetails, scorecard, weights) => {
-    log(`Enviando perfil para análise de scorecard com GPT-3.5-Turbo.`);
-    
+    log(`Enviando perfil de "${candidateProfileData.name}" para análise completa com pesos.`);
+    if (!OPENAI_API_KEY) throw new Error("A chave da API da OpenAI (OPENAI_API_KEY) não está configurada no .env");
+
     const weightMap = { 1: 'Baixo', 2: 'Médio', 3: 'Alto' };
+
     const allSkillsWithWeights = scorecard.skillCategories.flatMap(cat => 
-        (cat.skills || []).map(skill => ({
-            id: skill.id, name: skill.name, weight: weightMap[weights[skill.id] || 2]
+        cat.skills.map(skill => ({
+            id: skill.id,
+            name: skill.name,
+            weight: weightMap[weights[skill.id] || 2]
         }))
     );
 
     const prompt = `
-        Você é um Tech Recruiter Sênior. Sua tarefa é avaliar o perfil de um candidato para TODOS os critérios de um scorecard, DENTRO DO CONTEXTO de uma vaga, considerando a prioridade (peso) de cada critério.
+        Você é um Tech Recruiter Sênior, especialista em realizar análises profundas de perfis do LinkedIn.
+        Sua tarefa é avaliar o perfil de um candidato para TODOS os critérios de um scorecard, DENTRO DO CONTEXTO de uma vaga, **levando em consideração a prioridade (peso) de cada critério.**
 
-        **Vaga (Contexto):** ${JSON.stringify(jobDetails, null, 2)}
-        **Candidato (JSON):** ${JSON.stringify(candidateProfileData, null, 2)}
-        **Critérios e Pesos:** ${JSON.stringify(allSkillsWithWeights, null, 2)}
+        **Dados da Vaga (Contexto):**
+        ${JSON.stringify(jobDetails, null, 2)}
 
-        **Processo:**
-        1.  Analise o contexto da vaga e do candidato.
-        2.  Considere os pesos: critérios 'Alto' são cruciais.
-        3.  Avalie CADA critério com uma nota de 0 a 5 e uma justificativa curta (1-2 frases).
-        4.  Escreva um feedback geral conciso (2-4 frases).
-        5.  Sugira uma decisão: "YES", "NO", ou "NO_DECISION".
+        **Dados do Candidato (JSON):**
+        ${JSON.stringify(candidateProfileData, null, 2)}
 
-        **Formato OBRIGATÓRIO (JSON):**
-        { "evaluations": [ { "id": "ID_CRITERIO", "score": <nota>, "justification": "<justificativa>" } ], "overallFeedback": "<feedback>", "finalDecision": "<decisão>" }
+        **Critérios do Scorecard e Suas Prioridades (Pesos):**
+        ${JSON.stringify(allSkillsWithWeights, null, 2)}
+
+        **Seu Processo de Análise (Siga estritamente):**
+        1.  **Entenda o Contexto:** Leia os detalhes da vaga e do candidato.
+        2.  **Considere os Pesos:** Preste muita atenção na prioridade de cada critério. Critérios com peso 'Alto' são cruciais para a vaga. Critérios com peso 'Baixo' são apenas desejáveis. Sua avaliação e nota devem refletir essa importância. Uma ausência em um critério 'Alto' é muito mais grave do que em um 'Baixo'.
+        3.  **Avalie CADA Critério:** Para cada critério na lista, analise o perfil e atribua uma nota de 0 a 5 e uma justificativa curta (1-2 frases).
+            - **Rubrica de Notas (influenciada pelo peso):**
+              - 5: Evidência forte e direta, especialmente em critérios de peso Alto/Médio.
+              - 3-4: Evidência clara, mas talvez menos detalhada.
+              - 1-2: Evidência fraca ou indireta. Uma nota baixa em um critério 'Alto' deve ser justificada claramente.
+              - 0: Nenhuma evidência.
+        4.  **Escreva o Feedback Geral:** Com base em todas as suas avaliações ponderadas, escreva um parágrafo conciso (2-4 frases) resumindo a adequação do candidato para a vaga, mencionando os pontos mais críticos (de peso alto).
+        5.  **Tome a Decisão Final:** Com base na sua análise ponderada, sugira uma decisão. Responda com "YES" se o candidato parece um bom fit (especialmente nos critérios de peso alto), "NO" se parece um mau fit, ou "NO_DECISION" se for ambíguo.
+
+        **Formato OBRIGATÓRIO da Resposta:**
+        Responda APENAS com um objeto JSON válido, sem texto adicional.
+        {
+          "evaluations": [
+            { "id": "ID_DO_CRITERIO_1", "score": <sua nota de 0 a 5>, "justification": "<sua justificativa>" }
+          ],
+          "overallFeedback": "<seu parágrafo de feedback geral aqui>",
+          "finalDecision": "<sua decisão: 'YES', 'NO', ou 'NO_DECISION'>"
+        }
     `;
-    
-    const result = await callOpenAI(prompt, "gpt-3.5-turbo-0125");
-    log(`IA (GPT-3.5) retornou avaliação completa do scorecard.`);
-    return result;
+
+    try {
+        const response = await axios.post(OPENAI_API_URL, {
+            model: "gpt-4-turbo-preview",
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" }
+        }, {
+            headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` }
+        });
+        const result = JSON.parse(response.data.choices[0].message.content);
+        log(`IA retornou avaliação completa do scorecard com pesos.`);
+        return result;
+    } catch (err) {
+        error("Erro ao chamar a API da OpenAI:", err.response?.data || err.message);
+        throw err;
+    }
 };
 
 export const getAIEvaluationCacheStatus = async (talentId) => {
@@ -309,38 +323,73 @@ export const mapProfileToAllFieldsWithAI = async (scrapedProfileData, customFiel
 // A função antiga 'mapProfileToAllFieldsWithAI' é substituída por esta
 export const mapProfileToInhireSchemaWithAI = async (scrapedProfileData, talentFields, jobTalentFields) => {
     log(`--- ORQUESTRADOR IA: Mapeando perfil de "${scrapedProfileData.name}" para o schema completo da InHire ---`);
-    
-    const prompt = `
-        Você é um analista de dados especialista em recrutamento. Sua missão é analisar dados brutos de um perfil do LinkedIn (JSON) e preencher de forma autônoma e precisa o schema de dados de um sistema de recrutamento (ATS).
+    if (!OPENAI_API_KEY) throw new Error("A chave da API da OpenAI não está configurada.");
 
-        **Dossiê do Candidato (Fonte):**
+    const prompt = `
+        Você é um especialista em recrutamento e um analista de dados sênior. Sua missão é analisar um dossiê de dados brutos de um perfil do LinkedIn e preencher de forma autônoma e completa o schema de dados de um sistema de recrutamento (ATS).
+
+        **FERRAMENTA 1: Dossiê do Candidato (Fonte de Evidências)**
+        Este JSON contém todas as informações disponíveis sobre o candidato. Analise-o holisticamente.
         ${JSON.stringify(scrapedProfileData, null, 2)}
 
-        **Schema do Talento (Destino 1 - Campos Gerais):**
+        **FERRAMENTA 2: Schema do Talento (Destino 1)**
+        Estes são os campos GERAIS disponíveis para o perfil do talento.
         ${JSON.stringify(talentFields, null, 2)}
 
-        **Schema da Candidatura (Destino 2 - Campos Personalizados):**
+        **FERRAMENTA 3: Schema da Candidatura (Destino 2)**
+        Estes são os campos PERSONALIZADOS específicos para uma candidatura.
         ${JSON.stringify(jobTalentFields, null, 2)}
 
-        **SUA TAREFA:**
-        1.  **Análise Holística:** Entenda o Dossiê completo do candidato.
-        2.  **Preenchimento Preciso:** Preencha os campos dos Schemas do Talento e da Candidatura com base nas evidências do Dossiê.
-        3.  **Lógica de Preenchimento:** Para campos de seleção (select), retorne o objeto completo da opção mais adequada. Infira o gênero a partir do nome.
-        4.  **Regra de Ouro:** Não invente dados. Se não houver evidência para um campo, omita-o da resposta.
+        **SUA TAREFA (PROCESSO ANALÍTICO):**
+        1.  **Entendimento Completo:** Leia o Dossiê para entender quem é o candidato.
+        2.  **Preenchimento do Schema do Talento:** Para cada campo no "Schema do Talento", encontre a informação correspondente no Dossiê.
+        3.  **Preenchimento do Schema da Candidatura:** Para cada campo no "Schema da Candidatura", encontre a informação correspondente no Dossiê. Use sua inteligência para interpretar dados:
+            -   Se um campo personalizado for "Cargo Atual", use o 'jobTitle' do dossiê.
+            -   Para campos de seleção (select), analise o contexto (cargo, descrição) para escolher a opção mais adequada da lista 'options' e retorne o objeto completo da opção.
+            -   Infira o gênero a partir do nome.
+        4.  **Regra de Ouro:** Não invente dados. Se não houver evidência para um campo, omita-o do seu JSON de resposta.
 
-        **Formato OBRIGATÓRIO da Resposta (JSON):**
+        **Formato OBRIGATÓRIO da Resposta:**
+        Responda APENAS com um único objeto JSON que tenha duas chaves principais: 'talentPayload' e 'applicationPayload'.
+        
+        **Exemplo de Resposta Perfeita:**
         {
-          "talentPayload": { "location": "São Paulo, Brasil", "company": "Google" },
-          "applicationPayload": { "customFields": [ { "id": "ID_DO_CAMPO", "name": "Cargo", "type": "text", "value": "Engenheiro de Software" } ] }
+          "talentPayload": {
+            "location": "São Paulo, Brasil",
+            "company": "Google"
+          },
+          "applicationPayload": {
+            "customFields": [
+              {
+                "id": "ID_DO_CAMPO_CARGO",
+                "name": "Cargo",
+                "type": "text",
+                "value": "Engenheiro de Software Sênior"
+              },
+              {
+                "id": "ID_DO_CAMPO_SEXO",
+                "name": "Sexo",
+                "type": "select",
+                "value": { "id": "f054fecc...", "value": "Masculino", "label": "Masculino" }
+              }
+            ]
+          }
         }
     `;
 
-    // ==========================================================
-    // CORREÇÃO: Usando o modelo GPT-4 para esta tarefa específica
-    // que exige maior janela de contexto.
-    // ==========================================================
-    log(`Enviando perfil para mapeamento com GPT-4-Turbo devido ao tamanho do contexto.`);
-    const result = await callOpenAI(prompt, "gpt-4-turbo-preview");
-    log(`IA (GPT-4) concluiu o mapeamento autônomo para "${scrapedProfileData.name}".`);
-    return result;
+    try {
+        const response = await axios.post(OPENAI_API_URL, {
+            model: "gpt-4-turbo-preview",
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" }
+        }, {
+            headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` }
+        });
+        const result = JSON.parse(response.data.choices[0].message.content);
+        log(`IA concluiu o mapeamento autônomo para "${scrapedProfileData.name}".`);
+        return result;
+    } catch (err) {
+        error("Erro ao chamar a IA para mapeamento autônomo:", err.response?.data || err.message);
+        throw err;
+    }
 };
