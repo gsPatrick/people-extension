@@ -21,11 +21,16 @@
     "better-sqlite3": "^12.4.1",
     "cors": "^2.8.5",
     "csvtojson": "^2.0.10",
-    "dotenv": "^16.5.0",
+    "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "html-to-text": "^9.0.5",
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
+    "openai": "^6.6.0",
+    "pg": "^8.16.3",
+    "pg-hstore": "^2.3.4",
+    "pgvector": "^0.2.1",
+    "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {

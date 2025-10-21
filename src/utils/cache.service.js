@@ -1,16 +1,14 @@
 import { log } from './logger.service.js';
 
 /**
- * Serviço de cache em memória simples.
+ * Serviço de cache em memória simples e otimizado.
  */
-
 const cache = new Map();
-// REMOVIDO: const TTL = 5 * 60 * 1000;
 
 /**
  * Obtém um valor do cache.
  * @param {string} key - A chave do cache.
- * @returns {any | null}
+ * @returns {any | null} O dado em cache ou null se não encontrado.
  */
 export const getFromCache = (key) => {
   const cachedItem = cache.get(key);
@@ -19,10 +17,6 @@ export const getFromCache = (key) => {
     log(`CACHE MISS: Chave "${key}" não encontrada.`);
     return null;
   }
-
-  // REMOVIDA A LÓGICA DE EXPIRAÇÃO
-  // const isExpired = (Date.now() - cachedItem.timestamp) > TTL;
-  // if (isExpired) { ... }
 
   log(`CACHE HIT: Retornando dados para a chave "${key}".`);
   // Retorna diretamente os dados, sem o timestamp
@@ -37,7 +31,7 @@ export const getFromCache = (key) => {
 export const setToCache = (key, data) => {
   const item = {
     data: data,
-    timestamp: Date.now(), // Mantemos o timestamp para referência, se necessário
+    timestamp: Date.now(), // Mantemos o timestamp para referência e debug
   };
   cache.set(key, item);
   log(`CACHE SET: Dados armazenados para a chave "${key}".`);
@@ -57,4 +51,30 @@ export const clearCacheByPrefix = (prefix) => {
         }
     }
     log(`CACHE CLEAR: ${count} chave(s) removida(s).`);
+};
+
+
+// ==========================================================
+// NOVAS FUNÇÕES ADICIONADAS
+// ==========================================================
+
+/**
+ * Remove uma chave específica do cache.
+ * Essencial para invalidar um item específico (ex: um scorecard que foi atualizado).
+ * @param {string} key - A chave a ser removida.
+ */
+export const clearCache = (key) => {
+  if (cache.has(key)) {
+    cache.delete(key);
+    log(`CACHE CLEAR: Chave "${key}" removida.`);
+  }
+};
+
+/**
+ * Limpa o cache inteiro.
+ * Útil para cenários de re-sincronização total ou testes.
+ */
+export const flushAllCache = () => {
+    cache.clear();
+    log(`CACHE FLUSH: Todo o cache em memória foi limpo.`);
 };
