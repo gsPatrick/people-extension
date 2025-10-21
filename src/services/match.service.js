@@ -3,7 +3,7 @@ import { createEmbeddings } from './embedding.service.js';
 import { analyzeCriterionWithAI } from './ai.service.js';
 import { log, error } from '../utils/logger.service.js';
 import { sequelize } from '../models';
-import { toSql } from 'pg-vector';
+import { toSql } from 'pgvector';
 
 /**
  * Quebra o perfil em pedaços de texto significativos para análise.

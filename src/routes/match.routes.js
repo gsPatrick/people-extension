@@ -40,4 +40,4 @@ const router = Router();
  */
 router.post('/:scorecardId', matchController.analyzeProfile);
 
-export default router;
+export default router;  

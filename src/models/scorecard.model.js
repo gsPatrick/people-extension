@@ -49,4 +49,4 @@ tableName: 'scorecards',
 timestamps: true, // createdAt e updatedAt serão gerenciados automaticamente.
 });
 return Scorecard;
-};
+};  

@@ -1,5 +1,5 @@
 import { Model, DataTypes } from 'sequelize';
-import { toSql } from 'pg-vector';
+import { toSql } from 'pgvector';
 
 /**
  * Registra um tipo de dado customizado 'VECTOR' no Sequelize para compatibilidade com pgvector.
