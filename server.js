@@ -1,5 +1,3 @@
-// COLE ESTE CÓDIGO ATUALIZADO NO ARQUIVO: server.js
-
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
@@ -15,12 +13,15 @@ import { initializeAuthStorage } from './src/Inhire/Auth/authStorage.service.js'
 import { performLogin } from './src/Core/Auth-Flow/authOrchestrator.js';
 import apiRoutes from './src/routes/apiRoutes.js';
 
-// Importando o db (Sequelize) e os services
-import db from './src/models/index.js'; // Importa a instância do Sequelize e os models
-import { syncEntityCache } from './src/utils/sync.service.js';
+// **NOVA IMPORTAÇÃO** para o Sequelize
+import db from './src/models/index.js'; 
+
+// Importações existentes
+import './src/Platform/Cache/cache.service.js'; // Note que este cache é o de arquivos, não o de memória
 import { fetchAllJobsWithDetails } from './src/Core/Job-Flow/jobOrchestrator.js';
 import { fetchAllTalentsForSync, fetchCandidatesForJob } from './src/Core/management-flow/managementOrchestrator.js'; 
 import { getFromCache } from './src/utils/cache.service.js';
+import { syncEntityCache } from './src/utils/sync.service.js';
 import { createUser, findUserByEmail } from './src/Core/User-Flow/userService.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -31,6 +32,34 @@ const PORT = process.env.PORT || 4000;
 const JOBS_CACHE_KEY = 'all_jobs_with_details';
 const TALENTS_CACHE_KEY = 'all_talents';
 
+// ==========================================================
+// NOVA FUNÇÃO DE INICIALIZAÇÃO DO BANCO DE DADOS
+// ==========================================================
+/**
+ * Garante que a extensão pgvector exista e sincroniza os models do Sequelize com o banco de dados.
+ */
+const initializeDatabase = async () => {
+    log('--- INICIALIZAÇÃO DO BANCO DE DADOS (PostgreSQL + Sequelize) ---');
+    try {
+        log('Verificando se a extensão "vector" existe...');
+        await db.sequelize.query('CREATE EXTENSION IF NOT EXISTS vector;');
+        log('✅ Extensão "vector" verificada/criada com sucesso.');
+    } catch (err) {
+        logError('Falha ao tentar criar a extensão "vector".', 'Isso é esperado se seu usuário do banco não tiver permissões de superusuário.');
+        log('AVISO: Por favor, garanta que a extensão "vector" foi instalada MANUALMENTE no seu banco de dados na Hostinger.');
+    }
+
+    try {
+        log('Sincronizando models com o banco de dados (alter: true)...');
+        await db.sequelize.sync({ alter: true });
+        log('✅ Models sincronizados com sucesso. As tabelas estão prontas.');
+    } catch (err) {
+        logError('Falha crítica ao sincronizar os models com o banco de dados.', err);
+        process.exit(1); // Encerra o servidor se não conseguir criar/alterar as tabelas.
+    }
+};
+
+// Funções de sincronização e pré-carregamento (sem alterações)
 const syncJobs = () => syncEntityCache(JOBS_CACHE_KEY, fetchAllJobsWithDetails);
 const syncTalents = () => syncEntityCache(TALENTS_CACHE_KEY, fetchAllTalentsForSync);
 
@@ -80,24 +109,15 @@ const startServer = async () => {
   app.use(express.static(path.join(__dirname, 'public')));
   log('--- INICIALIZAÇÃO DO SERVIDOR ---');
 
-  // ==========================================================
-  // REMOVE A LÓGICA DE TENTAR CRIAR A EXTENSÃO
-  // ==========================================================
-  try {
-    log('Sincronizando models com o banco de dados (alter: true)...');
-    await db.sequelize.sync({ alter: true });
-    log('✅ Models sincronizados com sucesso. As tabelas estão prontas.');
-  } catch (err) {
-    logError('Falha crítica ao sincronizar os models com o banco de dados.', err);
-    process.exit(1);
-  }
+  // **NOVO PASSO ADICIONADO AQUI**
+  await initializeDatabase();
 
   initializeSessionService(memoryStorageAdapter);
   initializeAuthStorage(memoryStorageAdapter);
-  log('✅ Serviços de sessão e autenticação inicializados.');
+  log('✅ Serviços de sessão e autenticação InHire inicializados.');
 
   await seedAdminUser();
-  log('✅ Verificação do usuário admin concluída.');
+  log('✅ Verificação do usuário admin local concluída.');
 
   const loginResult = await performLogin();
   if (!loginResult.success) {
@@ -106,11 +126,11 @@ const startServer = async () => {
   }
   log('✅ Login na API da InHire bem-sucedido.');
 
-  log('Realizando a primeira sincronização de VAGAS...');
+  log('Realizando a primeira sincronização de VAGAS da InHire...');
   await syncJobs();
   log('✅ Sincronização de Vagas concluída.');
 
-  log('Realizando a primeira sincronização de TALENTOS...');
+  log('Realizando a primeira sincronização de TALENTOS da InHire...');
   await syncTalents();
   log('✅ Sincronização de Talentos concluída.');
   
@@ -120,7 +140,7 @@ const startServer = async () => {
   app.listen(PORT, () => {
     log(`🚀 Servidor rodando e ouvindo na porta ${PORT}`);
     
-    log('Iniciando pré-carregamento de candidatos em segundo plano...');
+    log('Iniciando pré-carregamento de candidatos da InHire em segundo plano...');
     prefetchAllCandidates().catch(err => logError("Erro durante o pré-carregamento em segundo plano:", err));
   });
 
