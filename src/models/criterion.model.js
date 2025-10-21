@@ -1,6 +1,28 @@
 import { Model, DataTypes } from 'sequelize';
+import { toSql } from 'pgvector';
 
-// Não precisamos mais de 'pg-vector' ou da função de registro.
+/**
+ * Adiciona o tipo de dado 'VECTOR' ao objeto DataTypes do Sequelize.
+ * @param {object} dataTypes - O objeto DataTypes importado do Sequelize.
+ */
+const registerVectorType = (dataTypes) => {
+  // Define a nova propriedade VECTOR diretamente no objeto DataTypes
+  dataTypes.VECTOR = function VECTOR(length) {
+    if (!length) {
+      throw new Error('Você deve especificar o comprimento do vetor. Ex: DataTypes.VECTOR(1536)');
+    }
+    // Retorna uma representação interna que o Sequelize entende
+    return {
+      type: `VECTOR(${length})`,
+      toSql: (value) => toSql(value),
+      parse: (value) => value,
+    };
+  };
+};
+
+// Chama a função imediatamente para modificar o objeto DataTypes importado
+registerVectorType(DataTypes);
+
 
 export default (sequelize) => {
   class Criterion extends Model {}
@@ -18,19 +40,20 @@ export default (sequelize) => {
     description: {
       type: DataTypes.TEXT,
       allowNull: true,
+      comment: 'Instrução para a IA sobre o que e como avaliar este critério.',
     },
     weight: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 2,
+      defaultValue: 2, // 1=Baixo, 2=Médio, 3=Alto
       validate: { min: 1, max: 3 },
+      comment: 'Peso do critério para o cálculo da nota ponderada (1-3).',
     },
     embedding: {
-      // MUDANÇA PRINCIPAL: Armazenamos o vetor como um JSON.
-      // JSONB é otimizado para busca e armazenamento de JSON em PostgreSQL.
-      type: DataTypes.JSONB,
+      // AGORA DataTypes.VECTOR existe e é uma função
+      type: DataTypes.VECTOR(1536), 
       allowNull: false,
-      comment: 'Vetor de embedding armazenado como um array JSON.',
+      comment: 'Vetor de embedding gerado a partir do nome e descrição do critério.',
     },
     order: {
       type: DataTypes.INTEGER,
