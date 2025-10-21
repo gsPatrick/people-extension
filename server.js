@@ -13,11 +13,8 @@ import { initializeAuthStorage } from './src/Inhire/Auth/authStorage.service.js'
 import { performLogin } from './src/Core/Auth-Flow/authOrchestrator.js';
 import apiRoutes from './src/routes/apiRoutes.js';
 
-// **NOVA IMPORTAÇÃO** para o Sequelize
 import db from './src/models/index.js'; 
 
-// Importações existentes
-import './src/Platform/Cache/cache.service.js'; // Note que este cache é o de arquivos, não o de memória
 import { fetchAllJobsWithDetails } from './src/Core/Job-Flow/jobOrchestrator.js';
 import { fetchAllTalentsForSync, fetchCandidatesForJob } from './src/Core/management-flow/managementOrchestrator.js'; 
 import { getFromCache } from './src/utils/cache.service.js';
@@ -33,29 +30,37 @@ const JOBS_CACHE_KEY = 'all_jobs_with_details';
 const TALENTS_CACHE_KEY = 'all_talents';
 
 // ==========================================================
-// NOVA FUNÇÃO DE INICIALIZAÇÃO DO BANCO DE DADOS
+// FUNÇÃO DE INICIALIZAÇÃO DO BANCO DE DADOS - ATUALIZADA
 // ==========================================================
 /**
- * Garante que a extensão pgvector exista e sincroniza os models do Sequelize com o banco de dados.
+ * Testa a conexão e sincroniza os models do Sequelize com o banco de dados.
  */
 const initializeDatabase = async () => {
     log('--- INICIALIZAÇÃO DO BANCO DE DADOS (PostgreSQL + Sequelize) ---');
+    
+    // PASSO 1: Testar a conexão com o banco de dados explicitamente
     try {
-        log('Verificando se a extensão "vector" existe...');
-        await db.sequelize.query('CREATE EXTENSION IF NOT EXISTS vector;');
-        log('✅ Extensão "vector" verificada/criada com sucesso.');
+        log('Testando a conexão com o banco de dados...');
+        await db.sequelize.authenticate();
+        log('✅ Conexão com o banco de dados estabelecida com sucesso.');
     } catch (err) {
-        logError('Falha ao tentar criar a extensão "vector".', 'Isso é esperado se seu usuário do banco não tiver permissões de superusuário.');
-        log('AVISO: Por favor, garanta que a extensão "vector" foi instalada MANUALMENTE no seu banco de dados na Hostinger.');
+        logError('******************************************************************');
+        logError('FALHA CRÍTICA: Não foi possível conectar ao banco de dados.', 'Verifique se as variáveis DB_HOST, DB_USER, DB_PASSWORD, DB_NAME e DB_PORT no seu arquivo .env estão corretas e se o servidor tem acesso ao banco.');
+        logError('******************************************************************');
+        logError('Detalhes do erro:', err);
+        process.exit(1); // Encerra o servidor se a conexão falhar.
     }
 
+    // PASSO 2: Sincronizar os models
+    // { force: true } irá DELETAR todas as tabelas existentes e recriá-las.
+    // Use com cuidado em produção. Ideal para desenvolvimento e testes.
     try {
-        log('Sincronizando models com o banco de dados (alter: true)...');
-        await db.sequelize.sync({ alter: true });
-        log('✅ Models sincronizados com sucesso. As tabelas estão prontas.');
+        log('Sincronizando models com o banco de dados (force: true)...');
+        await db.sequelize.sync({ force: true });
+        log('✅ Models sincronizados com sucesso. Tabelas recriadas.');
     } catch (err) {
         logError('Falha crítica ao sincronizar os models com o banco de dados.', err);
-        process.exit(1); // Encerra o servidor se não conseguir criar/alterar as tabelas.
+        process.exit(1);
     }
 };
 
@@ -70,7 +75,7 @@ const prefetchAllCandidates = async () => {
     logError('PREFETCH WORKER: Não há vagas no cache para buscar candidatos. Pulando.');
     return;
   }
-  log(`PREFETCH WORKER: Encontradas ${allJobs.length} vagas. Buscando candidatos para cada uma...`);
+  log(`PREFETCH WORKER: Encontradas ${allJobs.length} vagas. Buscando candidatos...`);
   const concurrencyLimit = 5;
   const batches = _.chunk(allJobs, concurrencyLimit);
   for (const batch of batches) {
@@ -109,13 +114,15 @@ const startServer = async () => {
   app.use(express.static(path.join(__dirname, 'public')));
   log('--- INICIALIZAÇÃO DO SERVIDOR ---');
 
-  // **NOVO PASSO ADICIONADO AQUI**
+  // Inicializa o banco de dados antes de qualquer outra coisa
   await initializeDatabase();
 
+  // O restante do fluxo de inicialização continua o mesmo
   initializeSessionService(memoryStorageAdapter);
   initializeAuthStorage(memoryStorageAdapter);
   log('✅ Serviços de sessão e autenticação InHire inicializados.');
 
+  // O seed do usuário admin precisa rodar DEPOIS do sync do banco
   await seedAdminUser();
   log('✅ Verificação do usuário admin local concluída.');
 
