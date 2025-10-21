@@ -1,46 +1,54 @@
+import { Sequelize } from 'sequelize';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-'use strict';
+// Módulos dos models
+import scorecardModel from './scorecard.model.js';
+import categoryModel from './category.model.js';
+import criterionModel from './criterion.model.js';
 
-const fs = require('fs');
-const path = require('path');
-const Sequelize = require('sequelize');
-const basename = path.basename(__filename);
+// Importa a configuração do banco de dados (ajuste o caminho se a estrutura for diferente)
+import dbConfig from '../config/database.js';
+
+// Configuração para lidar com __dirname em ES Modules, se necessário
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const env = process.env.NODE_ENV || 'development';
-const config = require(__dirname + '/../config/database.js')[env];
+const config = dbConfig[env];
+
 const db = {};
 
-// Inicializa a conexão com o banco de dados
-const sequelize = new Sequelize(config.database, config.username, config.password, config);
+let sequelize;
+if (config.use_env_variable) {
+  sequelize = new Sequelize(process.env[config.use_env_variable], config);
+} else {
+  sequelize = new Sequelize(config.database, config.username, config.password, config);
+}
 
-// Carrega todos os arquivos de modelo do diretório atual
-fs
-  .readdirSync(__dirname)
-  .filter(file => {
-    return (file.indexOf('.') !== 0) && (file !== basename) && (file.slice(-3) === '.js');
-  })
-  .forEach(file => {
-    const model = require(path.join(__dirname, file))(sequelize, Sequelize.DataTypes);
-    db[model.name] = model;
-  });
+// Inicializa cada model e o adiciona ao objeto 'db'
+const models = [
+  scorecardModel,
+  categoryModel,
+  criterionModel,
+];
 
-// --- DEFINIÇÃO DAS ASSOCIAÇÕES ---
+models.forEach(modelDefinition => {
+  const model = modelDefinition(sequelize);
+  db[model.name] = model;
+});
 
-// Um Scorecard tem muitas Categorias
-db.Scorecard.hasMany(db.Category, { as: 'categories', foreignKey: 'scorecardId' });
-db.Category.belongsTo(db.Scorecard, { foreignKey: 'scorecardId' });
-
-// Uma Categoria tem muitos Critérios
-db.Category.hasMany(db.Criterion, { as: 'criteria', foreignKey: 'categoryId' });
-db.Criterion.belongsTo(db.Category, { foreignKey: 'categoryId' });
-
-// Executa a associação para cada modelo, se o método `associate` existir
+// Executa o método 'associate' para cada modelo, se ele existir
+// Isso constrói as relações (hasMany, belongsTo, etc.) entre as tabelas
 Object.keys(db).forEach(modelName => {
   if (db[modelName].associate) {
     db[modelName].associate(db);
   }
 });
 
+// Exporta a instância do sequelize e os próprios models
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 
-module.exports = db;
+export default db;
