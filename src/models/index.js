@@ -2,7 +2,7 @@ import { Sequelize } from 'sequelize';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
-import { Vss } from 'sqlite-vss'; // Importa a extensão VSS
+import Vss from 'sqlite-vss'; // <<< CORREÇÃO APLICADA AQUI
 
 import dbConfig from '../config/database.js';
 import scorecardModel from './scorecard.model.js';
