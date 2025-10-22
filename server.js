@@ -37,7 +37,7 @@ const initializeDatabase = async () => {
     try {
         // Passo 1: Sincronizar os modelos primeiro
         log('Sincronizando models com o banco de dados (alter: true)...');
-        await sequelize.sync({ alter: true });
+        await sequelize.sync({ force: true });
         log('✅ Models sincronizados com sucesso.');
 
         // Passo 2: Tentar carregar VSS (opcional)
