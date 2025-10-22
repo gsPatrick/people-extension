@@ -1,8 +1,8 @@
-// ARQUIVO COMPLETO E CORRIGIDO: server.js
+// ARQUIVO COMPLETO E FINAL: server.js
 
 import 'dotenv/config';
 import path from 'path';
-import fs from 'fs'; // <--- Módulo File System do Node.js
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import _ from 'lodash';
 import express from 'express';
@@ -21,6 +21,7 @@ import apiRoutes from './src/routes/apiRoutes.js';
 import { createRequire } from 'node:module';
 import cors from 'cors';
 
+// --- CONFIGURAÇÃO INICIAL ---
 const require = createRequire(import.meta.url);
 const sqliteVss = require('sqlite-vss');
 
@@ -28,45 +29,52 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 4000;
+const DB_FILE_PATH = path.join(process.cwd(), 'database.sqlite');
+const CACHE_DB_PATH = path.join(process.cwd(), 'local_cache.sqlite');
 const JOBS_CACHE_KEY = 'all_jobs_with_details';
 const TALENTS_CACHE_KEY = 'all_talents';
-const DB_FILE_PATH = path.join(process.cwd(), 'database.sqlite'); // <--- Caminho do arquivo do DB
 
-// <-- NOVO CÓDIGO COMEÇA AQUI -->
-
-/**
- * Garante um banco de dados limpo em ambiente de desenvolvimento,
- * excluindo o arquivo .sqlite antigo antes de iniciar.
- */
-const ensureFreshDatabase = () => {
-    // A variável de ambiente NODE_ENV é 'production' em servidores de produção.
-    // Se não for 'production', assumimos que é desenvolvimento.
+// --- LÓGICA DE LIMPEZA E CRIAÇÃO DO BANCO DE DADOS ---
+// Esta função é executada IMEDIATAMENTE quando o script inicia.
+(() => {
+    // Só executa em ambiente de desenvolvimento.
     if (process.env.NODE_ENV !== 'production') {
+        console.log('[DB_INIT] Modo de desenvolvimento detectado. Forçando recriação do banco de dados...');
         try {
-            log('--- MODO DE DESENVOLVIMENTO DETECTADO ---');
-            // fs.rmSync é a forma moderna de deletar arquivos.
-            // A opção { force: true } evita erros caso o arquivo não exista.
-            fs.rmSync(DB_FILE_PATH, { force: true });
-            log('✅ Arquivo de banco de dados antigo (`database.sqlite`) removido com sucesso.');
+            // 1. Apaga o arquivo de banco de dados principal, se existir.
+            if (fs.existsSync(DB_FILE_PATH)) {
+                fs.unlinkSync(DB_FILE_PATH);
+                console.log('[DB_INIT] ✅ Arquivo `database.sqlite` antigo removido.');
+            }
+
+            // 2. Apaga o arquivo de cache local, se existir.
+            if (fs.existsSync(CACHE_DB_PATH)) {
+                fs.unlinkSync(CACHE_DB_PATH);
+                console.log('[DB_INIT] ✅ Arquivo `local_cache.sqlite` antigo removido.');
+            }
+
+            // 3. Cria um novo arquivo de banco de dados vazio.
+            //    Isso "prepara o terreno" para o Sequelize.
+            fs.writeFileSync(DB_FILE_PATH, '');
+            console.log('[DB_INIT] ✅ Novo arquivo `database.sqlite` vazio foi criado.');
+            
         } catch (err) {
-            logError('Falha ao tentar remover o arquivo de banco de dados antigo:', err.message);
-            // Encerra o processo para evitar iniciar com um estado inconsistente.
+            console.error('[DB_INIT] ❌ Falha crítica ao tentar recriar o banco de dados:', err.message);
+            // Encerra o processo se a limpeza falhar para evitar inconsistências.
             process.exit(1);
         }
     } else {
-        log('--- MODO DE PRODUÇÃO DETECTADO: O banco de dados será preservado. ---');
+        console.log('[DB_INIT] Modo de produção detectado. O banco de dados será preservado.');
     }
-};
+})();
 
-// <-- NOVO CÓDIGO TERMINA AQUI -->
 
-/**
- * Inicializa o banco de dados e carrega VSS.
- */
+// --- INICIALIZAÇÃO DO SERVIDOR E SERVIÇOS ---
+
 export const initializeDatabase = async () => {
     log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize) ---');
-    
     try {
+        // Agora `force: true` irá operar sobre o arquivo novo e vazio.
         log('Sincronizando models com o banco de dados (force: true)...');
         await sequelize.sync({ force: true });
         log('✅ Models sincronizados com sucesso (tabelas recriadas).');
@@ -75,22 +83,16 @@ export const initializeDatabase = async () => {
             log('🔍 Carregando extensão VSS via sqlite-vss...');
             await sqliteVss.load(sequelize);
             log('✅ Extensão VSS carregada com sucesso.');
-
             await sequelize.query(`
                 CREATE VIRTUAL TABLE IF NOT EXISTS vss_criteria USING vss0(
                     embedding(1536)
                 );
             `);
             log('✅ Tabela virtual VSS criada com sucesso.');
-
         } catch (vssError) {
-            logError('Não foi possível carregar VSS (busca vetorial desabilitada):', {
-                message: vssError.message,
-                hint: 'Verifique se o sqlite-vss está instalado corretamente e se foi rebuild se necessário'
-            });
+            logError('Não foi possível carregar VSS:', { message: vssError.message });
             log('⚠️ Servidor continuará sem suporte a VSS (busca vetorial).');
         }
-
     } catch (err) {
         logError('Falha crítica ao inicializar banco de dados:', {
             message: err.message,
@@ -101,11 +103,9 @@ export const initializeDatabase = async () => {
     }
 };
 
-// --- Funções de sincronização ---
 const syncJobs = () => syncEntityCache(JOBS_CACHE_KEY, fetchAllJobsWithDetails);
 const syncTalents = () => syncEntityCache(TALENTS_CACHE_KEY, fetchAllTalentsForSync);
 
-// --- Pré-carregamento de candidatos ---
 const prefetchAllCandidates = async () => {
     log('--- PREFETCH WORKER: Iniciando pré-carregamento de candidatos InHire ---');
     const allJobs = getFromCache(JOBS_CACHE_KEY);
@@ -123,7 +123,6 @@ const prefetchAllCandidates = async () => {
     log('--- PREFETCH WORKER: Pré-carregamento de candidatos InHire concluído. ---');
 };
 
-// --- Criação do usuário admin ---
 const seedAdminUser = async () => {
     const adminEmail = 'admin@admin.com';
     const existingAdmin = await findUserByEmail(adminEmail);
@@ -146,20 +145,16 @@ const seedAdminUser = async () => {
     }
 };
 
-// --- Inicialização do servidor ---
 const startServer = async () => {
     const app = express();
-
     configureLogger({ toFile: true });
-    
-    // <-- CHAMADA DA NOVA FUNÇÃO AQUI -->
-    ensureFreshDatabase();
 
     app.use(cors());
     app.use(express.json());
     app.use(express.static(path.join(__dirname, 'public')));
     log('--- INICIALIZAÇÃO DO SERVIDOR ---');
 
+    // A limpeza já ocorreu, agora apenas inicializamos com a estrutura correta.
     await initializeDatabase();
 
     initializeSessionService(memoryStorageAdapter);
@@ -198,4 +193,5 @@ const startServer = async () => {
     log('🔄 Sincronização periódica de Vagas e Talentos agendada a cada 60s.');
 };
 
+// Inicia o servidor.
 startServer();
