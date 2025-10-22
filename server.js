@@ -35,103 +35,93 @@ const initializeDatabase = async () => {
     log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize) ---');
     
     try {
-        // Obter a conexão do pool do Sequelize
-        const connection = await sequelize.connectionManager.getConnection();
-        
-        // Acessar o driver SQLite3 corretamente
-        const db = connection;
-        
-        try {
-            // Passo 1: Habilitar o carregamento de extensões
-            await new Promise((resolve, reject) => {
-                db.loadExtension = db.loadExtension || function() {
-                    throw new Error('loadExtension not available');
-                };
-                
-                // No SQLite3 do node, precisamos acessar o database handle diretamente
-                if (db.loadExtension) {
-                    db.loadExtension('', (err) => {
-                        // Primeiro chamamos com string vazia para habilitar
-                        if (err && !err.message.includes('not authorized')) {
-                            return reject(err);
-                        }
-                        log('✅ Carregamento de extensões habilitado na conexão.');
-                        resolve();
-                    });
-                } else {
-                    log('⚠️ loadExtension não disponível diretamente, tentando método alternativo...');
-                    resolve();
-                }
-            }).catch(err => {
-                // Se falhar, tentamos com PRAGMA
-                log('Tentando habilitar extensões via PRAGMA...');
-                return sequelize.query('PRAGMA temp_store = MEMORY');
-            });
-
-            // Passo 2: Construir o caminho absoluto para o arquivo da extensão
-            const vssPath = path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node');
-            
-            if (!fs.existsSync(vssPath)) {
-                throw new Error(`Extensão VSS não encontrada em: ${vssPath}`);
-            }
-            
-            log(`Carregando extensão VSS de: ${vssPath}`);
-
-            // Passo 3: Carregar a extensão VSS usando query SQL
-            try {
-                await sequelize.query(`SELECT load_extension('${vssPath.replace(/\\/g, '/')}')`);
-                log('✅ Extensão VSS carregada com sucesso via SQL query.');
-            } catch (sqlErr) {
-                // Método alternativo: usando a API do Sequelize
-                log('Tentando carregar extensão via API alternativa...');
-                
-                await new Promise((resolve, reject) => {
-                    if (typeof db.loadExtension === 'function') {
-                        db.loadExtension(vssPath, (err) => {
-                            if (err) return reject(err);
-                            log('✅ Extensão VSS carregada com sucesso.');
-                            resolve();
-                        });
-                    } else {
-                        reject(new Error('Nenhum método de carregamento de extensão disponível'));
-                    }
-                });
-            }
-
-        } finally {
-            // Passo 4: Liberar a conexão de volta para o pool do Sequelize
-            sequelize.connectionManager.releaseConnection(connection);
-        }
-
-    } catch (err) {
-        logError('Falha ao carregar a extensão VSS. Continuando sem VSS...', { 
-            message: err.message, 
-            stack: err.stack 
-        });
-        // Não fazemos exit aqui - permitimos que o servidor continue sem VSS
-        log('⚠️ Servidor continuará sem suporte a VSS (busca vetorial).');
-    }
-
-    try {
-        // Passo 5: Sincronizar os modelos
+        // Passo 1: Sincronizar os modelos primeiro
         log('Sincronizando models com o banco de dados (alter: true)...');
         await sequelize.sync({ alter: true });
         log('✅ Models sincronizados com sucesso.');
 
-        // Passo 6: Criar a tabela virtual VSS (se a extensão foi carregada)
+        // Passo 2: Tentar carregar VSS (opcional)
         try {
+            // Lista de possíveis caminhos para a extensão
+            const possiblePaths = [
+                path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node'),
+                path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'vss0.node'),
+                path.join(__dirname, 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node'),
+                path.join(__dirname, '..', 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node'),
+                '/app/node_modules/sqlite-vss/build/Release/vss0.node', // Caminho absoluto para Docker
+            ];
+
+            let vssPath = null;
+            log('🔍 Procurando extensão VSS nos seguintes caminhos:');
+            for (const testPath of possiblePaths) {
+                log(`   Testando: ${testPath}`);
+                if (fs.existsSync(testPath)) {
+                    vssPath = testPath;
+                    log(`   ✅ Extensão VSS encontrada em: ${vssPath}`);
+                    break;
+                } else {
+                    log(`   ❌ Não encontrado`);
+                }
+            }
+
+            if (!vssPath) {
+                // Último recurso: procurar recursivamente
+                log('🔍 Tentando busca recursiva no diretório node_modules...');
+                const nodeModulesPath = path.join(process.cwd(), 'node_modules');
+                if (fs.existsSync(nodeModulesPath)) {
+                    const findVssRecursive = (dir) => {
+                        try {
+                            const files = fs.readdirSync(dir);
+                            for (const file of files) {
+                                const fullPath = path.join(dir, file);
+                                const stat = fs.statSync(fullPath);
+                                if (stat.isDirectory() && !file.startsWith('.')) {
+                                    const result = findVssRecursive(fullPath);
+                                    if (result) return result;
+                                } else if (file === 'vss0.node') {
+                                    return fullPath;
+                                }
+                            }
+                        } catch (e) {
+                            // Ignorar erros de permissão
+                        }
+                        return null;
+                    };
+                    vssPath = findVssRecursive(nodeModulesPath);
+                    if (vssPath) {
+                        log(`   ✅ Extensão VSS encontrada via busca recursiva: ${vssPath}`);
+                    }
+                }
+            }
+
+            if (!vssPath) {
+                throw new Error('Extensão VSS não encontrada em nenhum caminho conhecido');
+            }
+
+            // Tentar carregar a extensão
+            const normalizedPath = vssPath.replace(/\\/g, '/');
+            log(`📦 Carregando extensão VSS de: ${normalizedPath}`);
+            await sequelize.query(`SELECT load_extension('${normalizedPath}')`);
+            log('✅ Extensão VSS carregada com sucesso.');
+
+            // Criar tabela virtual VSS
             await sequelize.query(`
                 CREATE VIRTUAL TABLE IF NOT EXISTS vss_criteria USING vss0(
                     embedding(1536)
                 );
             `);
-            log('✅ Tabela virtual VSS verificada/criada com sucesso.');
-        } catch (vssTableErr) {
-            log('⚠️ Não foi possível criar tabela VSS (extensão pode não estar carregada).');
+            log('✅ Tabela virtual VSS criada com sucesso.');
+
+        } catch (vssError) {
+            logError('Não foi possível carregar VSS (busca vetorial desabilitada):', {
+                message: vssError.message,
+                hint: 'Para habilitar VSS, execute: npm rebuild sqlite-vss --build-from-source'
+            });
+            log('⚠️ Servidor continuará sem suporte a VSS (busca vetorial).');
         }
 
     } catch (err) {
-        logError('Falha crítica ao sincronizar modelos.', {
+        logError('Falha crítica ao inicializar banco de dados:', {
             message: err.message,
             stack: err.stack,
             originalError: err.original?.message
