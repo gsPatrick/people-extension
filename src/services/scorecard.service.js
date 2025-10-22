@@ -1,179 +1,227 @@
-import db from '../models/index.js'; // CORREÇÃO 1: Importar o objeto 'db' padrão
-import { createEmbeddings } from './embedding.service.js';
-import { getFromCache, setToCache, clearCache } from '../utils/cache.service.js';
-import { log, error } from '../utils/logger.service.js';
+import db from '../models/index.js';
+import { clearCacheByPrefix, getFromCache, setToCache } from '../utils/cache.service.js';
+import { createEmbedding } from './embedding.service.js'; // Assumindo que a função para criar um único embedding se chama 'createEmbedding'
+import { log, error as logError } from '../utils/logger.service.js';
 
-// CORREÇÃO 2: Extrair os modelos e o sequelize do objeto 'db'
-const { Scorecard, Category, Criterion, sequelize } = db;
-
-const ALL_SCORECARDS_CACHE_KEY = 'scorecards_all_list';
-const SCORECARD_ID_CACHE_PREFIX = 'scorecard_id_';
+const SCORECARDS_CACHE_PREFIX = 'scorecards_';
+const ALL_SCORECARDS_CACHE_KEY = `${SCORECARDS_CACHE_PREFIX}all`;
 
 /**
- * Cria um novo scorecard.
- */
-export const create = async (scorecardData) => {
-  const transaction = await sequelize.transaction();
-  try {
-    log(`Iniciando criação do scorecard: "${scorecardData.name}"`);
-
-    const scorecard = await Scorecard.create({
-      name: scorecardData.name,
-      atsIntegration: scorecardData.atsIntegration,
-      externalId: scorecardData.externalId,
-    }, { transaction });
-
-    for (const [catIndex, catData] of scorecardData.categories.entries()) {
-      const category = await Category.create({
-        name: catData.name,
-        scorecardId: scorecard.id,
-        order: catIndex,
-      }, { transaction });
-
-      const validCriteria = catData.criteria?.filter(c => c.name && c.name.trim());
-      if (validCriteria?.length > 0) {
-        const criteriaTextsForEmbedding = validCriteria.map(c => `${c.name}: ${c.description || ''}`);
-        const embeddings = await createEmbeddings(criteriaTextsForEmbedding);
-
-        const criteriaToCreate = validCriteria.map((crit, critIndex) => ({
-          name: crit.name,
-          description: crit.description,
-          weight: crit.weight || 2,
-          embedding: embeddings[critIndex],
-          categoryId: category.id,
-          order: critIndex,
-        }));
-        await Criterion.bulkCreate(criteriaToCreate, { transaction });
-      }
-    }
-
-    await transaction.commit();
-    clearCache(ALL_SCORECARDS_CACHE_KEY);
-
-    log(`Scorecard "${scorecard.name}" criado com sucesso.`);
-    return findById(scorecard.id);
-  } catch (err) {
-    await transaction.rollback();
-    error('Erro transacional ao criar scorecard:', err.message);
-    throw err;
-  }
-};
-
-/**
- * Busca todos os scorecards. Otimizado com cache.
+ * Busca todos os scorecards com suas categorias e critérios aninhados.
+ * Utiliza cache para otimizar as leituras.
+ * @returns {Promise<Array>} Uma lista de scorecards.
  */
 export const findAll = async () => {
   const cachedScorecards = getFromCache(ALL_SCORECARDS_CACHE_KEY);
-  if (cachedScorecards) return cachedScorecards;
+  if (cachedScorecards) {
+    log('CACHE HIT: Retornando todos os scorecards do cache.');
+    return cachedScorecards;
+  }
 
-  log("Buscando todos os scorecards do banco de dados (SQLite)...");
-  const scorecards = await Scorecard.findAll({
-    order: [['name', 'ASC']],
-    include: [{
-      model: Category,
-      as: 'categories',
-      separate: true,
-      order: [['order', 'ASC']],
-      include: [{
-        model: Criterion,
-        as: 'criteria',
-        attributes: { exclude: ['embedding'] },
-        order: [['order', 'ASC']],
-      }],
-    }],
-  });
+  try {
+    // Acessa os modelos através do objeto 'db' para evitar dependências circulares.
+    const scorecards = await db.Scorecard.findAll({
+      include: [
+        {
+          model: db.Category,
+          as: 'categories',
+          include: [
+            {
+              model: db.Criterion,
+              as: 'criteria',
+            },
+          ],
+        },
+      ],
+      order: [
+        ['name', 'ASC'],
+        [{ model: db.Category, as: 'categories' }, 'order', 'ASC'],
+        [{ model: db.Category, as: 'categories' }, { model: db.Criterion, as: 'criteria' }, 'order', 'ASC'],
+      ],
+    });
 
-  setToCache(ALL_SCORECARDS_CACHE_KEY, scorecards);
-  return scorecards;
+    setToCache(ALL_SCORECARDS_CACHE_KEY, scorecards);
+    return scorecards;
+  } catch (err) {
+    logError('Erro ao buscar todos os scorecards:', err.message);
+    throw new Error('Não foi possível recuperar os scorecards do banco de dados.');
+  }
 };
 
 /**
- * Busca um scorecard por ID. Otimizado com cache.
+ * Busca um scorecard específico pelo seu ID com todas as associações.
+ * @param {string} id - O UUID do scorecard.
+ * @returns {Promise<Object|null>} O scorecard encontrado ou null.
  */
 export const findById = async (id) => {
-  const cacheKey = `${SCORECARD_ID_CACHE_PREFIX}${id}`;
+  const cacheKey = `${SCORECARDS_CACHE_PREFIX}${id}`;
   const cachedScorecard = getFromCache(cacheKey);
-  if (cachedScorecard) return cachedScorecard;
-
-  log(`Buscando scorecard ID ${id} do banco de dados (SQLite)...`);
-  const scorecard = await Scorecard.findByPk(id, {
-    include: [{
-      model: Category,
-      as: 'categories',
-      include: [{
-        model: Criterion,
-        as: 'criteria',
-      }],
-    }],
-    order: [
-      [{ model: Category, as: 'categories' }, 'order', 'ASC'],
-      [{ model: Category, as: 'categories' }, { model: Criterion, as: 'criteria' }, 'order', 'ASC']
-    ],
-  });
-  
-  if (scorecard) {
-    setToCache(cacheKey, scorecard);
+  if (cachedScorecard) {
+    log(`CACHE HIT: Retornando scorecard ${id} do cache.`);
+    return cachedScorecard;
   }
-  return scorecard;
+  
+  try {
+    const scorecard = await db.Scorecard.findByPk(id, {
+        include: [
+            {
+              model: db.Category,
+              as: 'categories',
+              separate: true, // Otimiza a query para 'hasMany'
+              include: [
+                {
+                  model: db.Criterion,
+                  as: 'criteria',
+                },
+              ],
+            },
+        ],
+        order: [
+            [{ model: db.Category, as: 'categories' }, 'order', 'ASC'],
+            [{ model: db.Category, as: 'categories' }, { model: db.Criterion, as: 'criteria' }, 'order', 'ASC'],
+        ],
+    });
+
+    if (scorecard) {
+        setToCache(cacheKey, scorecard);
+    }
+    return scorecard;
+  } catch (err) {
+    logError(`Erro ao buscar scorecard com ID ${id}:`, err.message);
+    throw new Error('Não foi possível recuperar o scorecard do banco de dados.');
+  }
 };
 
 /**
- * Atualiza um scorecard.
+ * Cria um novo scorecard com suas categorias e critérios.
+ * @param {object} scorecardData - Os dados do scorecard a ser criado.
+ * @returns {Promise<Object>} O scorecard recém-criado.
  */
-export const update = async (id, scorecardData) => {
-  const transaction = await sequelize.transaction();
+export const create = async (scorecardData) => {
+  const t = await db.sequelize.transaction();
   try {
-    const scorecard = await Scorecard.findByPk(id, { transaction });
-    if (!scorecard) return null;
-
-    await Category.destroy({ where: { scorecardId: id }, transaction });
+    const { categories, ...restOfData } = scorecardData;
     
-    scorecard.name = scorecardData.name;
-    await scorecard.save({ transaction });
+    const newScorecard = await db.Scorecard.create(restOfData, { transaction: t });
 
-    for (const [catIndex, catData] of scorecardData.categories.entries()) {
-      const category = await Category.create({ name: catData.name, scorecardId: id, order: catIndex }, { transaction });
-      const validCriteria = catData.criteria?.filter(c => c.name && c.name.trim());
-      if (validCriteria?.length > 0) {
-        const criteriaTextsForEmbedding = validCriteria.map(c => `${c.name}: ${c.description || ''}`);
-        const embeddings = await createEmbeddings(criteriaTextsForEmbedding);
-        const criteriaToCreate = validCriteria.map((crit, critIndex) => ({
-          name: crit.name,
-          description: crit.description,
-          weight: crit.weight || 2,
-          embedding: embeddings[critIndex],
-          categoryId: category.id,
-          order: critIndex,
-        }));
-        await Criterion.bulkCreate(criteriaToCreate, { transaction });
+    if (categories && categories.length > 0) {
+      for (const categoryData of categories) {
+        const { criteria, ...restOfCategory } = categoryData;
+        const newCategory = await db.Category.create({
+          ...restOfCategory,
+          scorecardId: newScorecard.id,
+        }, { transaction: t });
+
+        if (criteria && criteria.length > 0) {
+          for (const criterionData of criteria) {
+            const embedding = await createEmbedding(criterionData.description);
+            await db.Criterion.create({
+              ...criterionData,
+              embedding,
+              categoryId: newCategory.id,
+            }, { transaction: t });
+          }
+        }
       }
     }
 
-    await transaction.commit();
-    clearCache(ALL_SCORECARDS_CACHE_KEY);
-    clearCache(`${SCORECARD_ID_CACHE_PREFIX}${id}`);
+    await t.commit();
+    
+    // Invalida o cache para que a próxima leitura inclua o novo scorecard.
+    clearCacheByPrefix(SCORECARDS_CACHE_PREFIX);
+    log(`Cache de scorecards invalidado após a criação de '${newScorecard.name}'.`);
 
-    log(`Scorecard "${scorecard.name}" atualizado com sucesso.`);
-    return findById(id);
+    // Retorna o scorecard completo com todas as associações.
+    return findById(newScorecard.id);
   } catch (err) {
-    await transaction.rollback();
-    error(`Erro transacional ao atualizar scorecard ${id}:`, err.message);
-    throw err;
+    await t.rollback();
+    logError('Erro ao criar scorecard:', err.message);
+    throw new Error('Falha ao criar o scorecard. A transação foi revertida.');
   }
 };
 
 /**
- * Remove um scorecard por ID.
+ * Atualiza um scorecard existente.
+ * Esta função adota uma abordagem de "substituição" para categorias e critérios
+ * para simplificar a lógica e evitar complexidade de sincronização.
+ * @param {string} id - O ID do scorecard a ser atualizado.
+ * @param {object} scorecardData - Os novos dados para o scorecard.
+ * @returns {Promise<Object>} O scorecard atualizado.
+ */
+export const update = async (id, scorecardData) => {
+    const t = await db.sequelize.transaction();
+    try {
+        const scorecard = await db.Scorecard.findByPk(id, { transaction: t });
+        if (!scorecard) {
+            throw new Error('Scorecard não encontrado.');
+        }
+
+        const { categories, ...restOfData } = scorecardData;
+
+        // Atualiza os dados do scorecard principal
+        await scorecard.update(restOfData, { transaction: t });
+
+        // Deleta todas as categorias e critérios antigos (cascade fará o trabalho)
+        await db.Category.destroy({ where: { scorecardId: id }, transaction: t });
+
+        // Cria as novas categorias e critérios a partir dos dados recebidos
+        if (categories && categories.length > 0) {
+            for (const categoryData of categories) {
+                const { criteria, ...restOfCategory } = categoryData;
+                const newCategory = await db.Category.create({
+                    ...restOfCategory,
+                    scorecardId: id,
+                }, { transaction: t });
+
+                if (criteria && criteria.length > 0) {
+                    for (const criterionData of criteria) {
+                        const embedding = await createEmbedding(criterionData.description);
+                        await db.Criterion.create({
+                            ...criterionData,
+                            embedding,
+                            categoryId: newCategory.id,
+                        }, { transaction: t });
+                    }
+                }
+            }
+        }
+
+        await t.commit();
+        
+        // Invalida todo o cache de scorecards
+        clearCacheByPrefix(SCORECARDS_CACHE_PREFIX);
+        log(`Cache de scorecards invalidado após a atualização de '${scorecard.name}'.`);
+        
+        return findById(id);
+    } catch (err) {
+        await t.rollback();
+        logError(`Erro ao atualizar scorecard ${id}:`, err.message);
+        throw new Error('Falha ao atualizar o scorecard. A transação foi revertida.');
+    }
+};
+
+/**
+ * Deleta um scorecard pelo seu ID.
+ * @param {string} id - O ID do scorecard a ser deletado.
+ * @returns {Promise<void>}
  */
 export const remove = async (id) => {
-  const scorecard = await Scorecard.findByPk(id);
-  if (!scorecard) return false;
+    const t = await db.sequelize.transaction();
+    try {
+        const scorecard = await db.Scorecard.findByPk(id, { transaction: t });
+        if (!scorecard) {
+            throw new Error('Scorecard não encontrado para deletar.');
+        }
 
-  await scorecard.destroy();
-
-  clearCache(ALL_SCORECARDS_CACHE_KEY);
-  clearCache(`${SCORECARD_ID_CACHE_PREFIX}${id}`);
-
-  log(`Scorecard ID ${id} deletado com sucesso.`);
-  return true;
+        await scorecard.destroy({ transaction: t });
+        await t.commit();
+        
+        // Invalida o cache
+        clearCacheByPrefix(SCORECARDS_CACHE_PREFIX);
+        log(`Cache de scorecards invalidado após a remoção do scorecard ${id}.`);
+    } catch (err) {
+        await t.rollback();
+        logError(`Erro ao deletar scorecard ${id}:`, err.message);
+        throw new Error('Falha ao deletar o scorecard.');
+    }
 };
