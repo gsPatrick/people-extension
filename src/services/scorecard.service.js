@@ -2,7 +2,7 @@
 
 import db from '../models/index.js';
 import { clearCacheByPrefix, getFromCache, setToCache } from '../utils/cache.service.js';
-import { createEmbedding } from './embedding.service.js';
+// A importação de 'createEmbedding' não é mais necessária nesta versão.
 import { log, error as logError } from '../utils/logger.service.js';
 
 const SCORECARDS_CACHE_PREFIX = 'scorecards_';
@@ -35,10 +35,10 @@ export const findAll = async () => {
       ],
     });
 
-    // Passo 1: Converter todas as instâncias do Sequelize em objetos JavaScript puros.
+    // Converte as instâncias do Sequelize em objetos JavaScript puros.
     const plainScorecards = scorecards.map(sc => sc.get({ plain: true }));
 
-    // Passo 2: Sanitizar os dados, garantindo que 'criteria' seja sempre um array.
+    // Garante que a propriedade 'criteria' sempre seja um array, mesmo que vazia.
     for (const scorecard of plainScorecards) {
       if (scorecard.categories) {
         for (const category of scorecard.categories) {
@@ -76,7 +76,7 @@ export const findById = async (id) => {
         {
           model: db.Category,
           as: 'categories',
-          separate: true,
+          separate: true, // Otimização para queries complexas com hasMany
           include: [{ model: db.Criterion, as: 'criteria' }],
         },
       ],
@@ -87,10 +87,7 @@ export const findById = async (id) => {
     });
 
     if (scorecard) {
-      // Passo 1: Converter a instância do Sequelize em um objeto JavaScript puro.
       const plainScorecard = scorecard.get({ plain: true });
-
-      // Passo 2: Sanitizar os dados.
       if (plainScorecard.categories) {
         for (const category of plainScorecard.categories) {
           if (!category.criteria) {
@@ -125,20 +122,17 @@ export const create = async (scorecardData) => {
         const newCategory = await db.Category.create({ 
             ...restOfCategory, 
             scorecardId: newScorecard.id,
-            order: categoryIndex // Adiciona a ordem da categoria
+            order: categoryIndex 
         }, { transaction: t });
 
         if (criteria && criteria.length > 0) {
           for (const [criterionIndex, criterionData] of criteria.entries()) {
-            // *** CORREÇÃO APLICADA AQUI ***
-            // Gera o embedding a partir do 'name', que sempre existe.
             if (criterionData.name && criterionData.name.trim() !== '') {
-              const embedding = await createEmbedding(criterionData.name);
+              // A lógica de embedding foi removida temporariamente
               await db.Criterion.create({ 
                   ...criterionData, 
-                  embedding, 
                   categoryId: newCategory.id,
-                  order: criterionIndex // Adiciona a ordem do critério
+                  order: criterionIndex 
               }, { transaction: t });
             }
           }
@@ -171,6 +165,7 @@ export const update = async (id, scorecardData) => {
 
         const { categories, ...restOfData } = scorecardData;
         await scorecard.update(restOfData, { transaction: t });
+        // Destrói categorias filhas para recriá-las (maneira simples de sincronizar)
         await db.Category.destroy({ where: { scorecardId: id }, transaction: t });
 
         if (categories && categories.length > 0) {
@@ -179,21 +174,18 @@ export const update = async (id, scorecardData) => {
                 const newCategory = await db.Category.create({ 
                     ...restOfCategory, 
                     scorecardId: id,
-                    order: categoryIndex // Adiciona a ordem da categoria
+                    order: categoryIndex 
                 }, { transaction: t });
 
                 if (criteria && criteria.length > 0) {
                     for (const [criterionIndex, criterionData] of criteria.entries()) {
-                       // *** CORREÇÃO APLICADA AQUI ***
-                       // Gera o embedding a partir do 'name', que sempre existe.
                         if (criterionData.name && criterionData.name.trim() !== '') {
-                            const embedding = await createEmbedding(criterionData.name);
-                            await db.Criterion.create({ 
-                                ...criterionData, 
-                                embedding, 
-                                categoryId: newCategory.id,
-                                order: criterionIndex // Adiciona a ordem do critério
-                            }, { transaction: t });
+                           // A lógica de embedding foi removida temporariamente
+                           await db.Criterion.create({ 
+                               ...criterionData, 
+                               categoryId: newCategory.id,
+                               order: criterionIndex
+                           }, { transaction: t });
                         }
                     }
                 }
@@ -225,7 +217,9 @@ export const remove = async (id) => {
             return false;
         }
 
+        // A deleção em cascata (onDelete: 'CASCADE') nos models cuidará de deletar categorias e critérios filhos.
         await scorecard.destroy({ transaction: t });
+        
         await t.commit();
         clearCacheByPrefix(SCORECARDS_CACHE_PREFIX);
         log(`Cache de scorecards invalidado após a remoção do scorecard ${id}.`);

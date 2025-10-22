@@ -1,3 +1,5 @@
+// ARQUIVO COMPLETO: src/models/scorecard.model.js
+
 import { Model, DataTypes } from 'sequelize';
 
 export default (sequelize) => {

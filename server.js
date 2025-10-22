@@ -1,4 +1,4 @@
-// ARQUIVO COMPLETO (VERSÃO DE DEPURAÇÃO 1): server.js
+// ARQUIVO COMPLETO E FINAL: server.js
 
 import 'dotenv/config';
 import path from 'path';
@@ -6,109 +6,145 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import _ from 'lodash';
 import express from 'express';
-import cors from 'cors';
-import { createRequire } from 'node:module';
-
-// --- IMPORTS QUE NÃO DEPENDEM DO BANCO DE DADOS ---
 import { configureLogger, log, error as logError } from './src/utils/logger.service.js';
 import { memoryStorageAdapter } from './src/Platform/Storage/memoryStorage.adapter.js';
 import { initializeSessionService } from './src/Core/session.service.js';
-import { initializeSequelize, sequelize as getSequelizeInstance } from './src/models/index.js';
+import { initializeAuthStorage } from './src/Inhire/Auth/authStorage.service.js';
+import { performLogin } from './src/Core/Auth-Flow/authOrchestrator.js';
+import { sequelize } from './src/models/index.js'; // <-- MUDANÇA: Agora importa a instância já configurada
+import { syncEntityCache } from './src/utils/sync.service.js';
+import { fetchAllJobsWithDetails } from './src/Core/Job-Flow/jobOrchestrator.js';
+import { fetchAllTalentsForSync, fetchCandidatesForJob } from './src/Core/management-flow/managementOrchestrator.js'; 
+import { getFromCache } from './src/utils/cache.service.js';
+import { createUser, findUserByEmail } from './src/Core/User-Flow/userService.js';
+import apiRoutes from './src/routes/apiRoutes.js';
+import cors from 'cors';
 
-// --- CONFIGURAÇÃO INICIAL ---
-// const require = createRequire(import.meta.url);
-// const sqliteVss = require('sqlite-vss'); // <-- REMOVIDO TEMPORARIAMENTE
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 const PORT = process.env.PORT || 4000;
-const DB_FILE_PATH = path.join(process.cwd(), 'database.sqlite');
+const JOBS_CACHE_KEY = 'all_jobs_with_details';
+const TALENTS_CACHE_KEY = 'all_talents';
 
-// --- LIMPEZA GARANTIDA ---
-if (process.env.NODE_ENV !== 'production') {
-    log('[DB_CLEANUP] Modo Dev: Forçando recriação do banco de dados...');
-    fs.rmSync(DB_FILE_PATH, { force: true, recursive: true });
-    log('[DB_CLEANUP] ✅ Arquivo `database.sqlite` antigo removido.');
-}
+/**
+ * Inicializa o banco de dados PostgreSQL.
+ */
+export const initializeDatabase = async () => {
+    log('--- INICIALIZAÇÃO DO BANCO DE DADOS (PostgreSQL + Sequelize) ---');
+    try {
+        // Testa a conexão
+        await sequelize.authenticate();
+        log('✅ Conexão com o PostgreSQL estabelecida com sucesso.');
+        
+        // Sincroniza os modelos. `force: true` apaga e recria as tabelas.
+        // CUIDADO: Isso apaga todos os dados em cada reinicialização.
+        log('Sincronizando models com o banco de dados (force: true)...');
+        await sequelize.sync({ force: true });
+        log('✅ Models sincronizados com sucesso (tabelas recriadas).');
 
+    } catch (err) {
+        logError('Falha crítica ao inicializar o banco de dados PostgreSQL:', {
+            message: err.message,
+            stack: err.stack,
+        });
+        process.exit(1);
+    }
+};
+
+// --- Funções de sincronização (sem alterações) ---
+const syncJobs = () => syncEntityCache(JOBS_CACHE_KEY, fetchAllJobsWithDetails);
+const syncTalents = () => syncEntityCache(TALENTS_CACHE_KEY, fetchAllTalentsForSync);
+
+// --- Pré-carregamento de candidatos (sem alterações) ---
+const prefetchAllCandidates = async () => {
+    log('--- PREFETCH WORKER: Iniciando pré-carregamento de candidatos InHire ---');
+    const allJobs = getFromCache(JOBS_CACHE_KEY);
+    if (!allJobs || allJobs.length === 0) {
+        logError('PREFETCH WORKER: Não há vagas InHire no cache para buscar candidatos. Pulando.');
+        return;
+    }
+    log(`PREFETCH WORKER: Encontradas ${allJobs.length} vagas. Buscando candidatos...`);
+    const concurrencyLimit = 5;
+    const batches = _.chunk(allJobs, concurrencyLimit);
+    for (const batch of batches) {
+        await Promise.all(batch.map(job => fetchCandidatesForJob(job.id)));
+        log(`PREFETCH WORKER: Lote de ${batch.length} vagas processado.`);
+    }
+    log('--- PREFETCH WORKER: Pré-carregamento concluído. ---');
+};
+
+// --- Criação do usuário admin (sem alterações) ---
+const seedAdminUser = async () => {
+    const adminEmail = 'admin@admin.com';
+    const existingAdmin = await findUserByEmail(adminEmail);
+    if (!existingAdmin) {
+        log('Nenhum usuário admin encontrado. Criando um novo...');
+        try {
+            await createUser({
+                name: 'Administrador',
+                email: adminEmail,
+                password: 'senhasuperdificil',
+                role: 'admin'
+            });
+            log('✅ Usuário admin criado com sucesso.');
+        } catch (err) {
+            logError('Falha crítica ao criar o usuário admin:', err.message);
+            process.exit(1);
+        }
+    } else {
+        log('Usuário admin já existe.');
+    }
+};
+
+// --- Inicialização do servidor ---
 const startServer = async () => {
-    // --- PASSO 1: INICIALIZAÇÃO DO SEQUELIZE E DOS MODELS ---
-    await initializeSequelize();
-    log('✅ Conexão com Sequelize e modelos carregados.');
-
-    // --- PASSO 2: IMPORTS DINÂMICOS ---
-    const { default: apiRoutes } = await import('./src/routes/apiRoutes.js');
-    const { initializeAuthStorage } = await import('./src/Inhire/Auth/authStorage.service.js');
-    const { performLogin } = await import('./src/Core/Auth-Flow/authOrchestrator.js');
-    const { syncEntityCache } = await import('./src/utils/sync.service.js');
-    const { fetchAllJobsWithDetails } = await import('./src/Core/Job-Flow/jobOrchestrator.js');
-    const { fetchAllTalentsForSync, fetchCandidatesForJob } = await import('./src/Core/management-flow/managementOrchestrator.js');
-    const { getFromCache } = await import('./src/utils/cache.service.js');
-    const { createUser, findUserByEmail } = await import('./src/Core/User-Flow/userService.js');
-    
-    // --- PASSO 3: INICIALIZAÇÃO DO EXPRESS ---
     const app = express();
+
     configureLogger({ toFile: true });
+    
     app.use(cors());
     app.use(express.json());
     app.use(express.static(path.join(__dirname, 'public')));
     log('--- INICIALIZAÇÃO DO SERVIDOR ---');
 
-    // --- PASSO 4: SINCRONIZAÇÃO DA ESTRUTURA DO BANCO DE DADOS ---
-    const sequelize = getSequelizeInstance();
-    try {
-        log('Sincronizando models com o banco de dados (force: true)...');
-        await sequelize.sync({ force: true });
-        log('✅ Estrutura do banco de dados sincronizada com sucesso.');
+    // <-- MUDANÇA: A lógica de remoção de arquivo e VSS foi removida.
+    await initializeDatabase();
 
-        // --- LÓGICA VSS REMOVIDA TEMPORARIAMENTE ---
-        log('⚠️ AVISO: Integração com sqlite-vss está desativada para depuração.');
-
-    } catch (err) {
-        logError('❌ Falha crítica ao sincronizar DB:', err);
-        process.exit(1);
-    }
-    
-    // --- PASSO 5: RESTANTE DA LÓGICA DE STARTUP ---
     initializeSessionService(memoryStorageAdapter);
     initializeAuthStorage(memoryStorageAdapter);
-    
-    const adminExists = await findUserByEmail('admin@admin.com');
-    if (!adminExists) {
-        await createUser({ name: 'Administrador', email: 'admin@admin.com', password: 'senhasuperdificil', role: 'admin' });
-    }
+    log('✅ Serviços de sessão e autenticação InHire inicializados.');
+
+    await seedAdminUser();
+    log('✅ Verificação do usuário admin local concluída.');
 
     const loginResult = await performLogin();
     if (!loginResult.success) {
-        logError('❌ Falha crítica no login da InHire. Encerrando.');
+        logError('Falha crítica no login da InHire. O servidor não pode continuar.');
         process.exit(1);
     }
-    
-    const JOBS_CACHE_KEY = 'all_jobs_with_details';
-    const TALENTS_CACHE_KEY = 'all_talents';
-    await syncEntityCache(JOBS_CACHE_KEY, fetchAllJobsWithDetails);
-    await syncEntityCache(TALENTS_CACHE_KEY, fetchAllTalentsForSync);
+    log('✅ Login na API da InHire bem-sucedido.');
+
+    log('Realizando a primeira sincronização de VAGAS da InHire...');
+    await syncJobs();
+    log('✅ Sincronização de Vagas concluída.');
+
+    log('Realizando a primeira sincronização de TALENTOS da InHire...');
+    await syncTalents();
+    log('✅ Sincronização de Talentos concluída.');
 
     app.use('/api', apiRoutes);
     log('✅ Rotas da API configuradas.');
 
     app.listen(PORT, () => {
-        log(`🚀 Servidor rodando na porta ${PORT}`);
-        const allJobs = getFromCache(JOBS_CACHE_KEY);
-        if (allJobs?.length > 0) {
-            const batches = _.chunk(allJobs, 5);
-            for (const batch of batches) {
-                Promise.all(batch.map(job => fetchCandidatesForJob(job.id)));
-            }
-        }
+        log(`🚀 Servidor rodando e ouvindo na porta ${PORT}`);
+        log('Iniciando pré-carregamento de candidatos em segundo plano...');
+        prefetchAllCandidates().catch(err => logError("Erro durante o pré-carregamento:", err));
     });
 
-    setInterval(() => syncEntityCache(JOBS_CACHE_KEY, fetchAllJobsWithDetails), 60000);
-    setInterval(() => syncEntityCache(TALENTS_CACHE_KEY, fetchAllTalentsForSync), 60000);
+    setInterval(syncJobs, 60000);
+    setInterval(syncTalents, 60000);
+    log('🔄 Sincronização periódica agendada a cada 60s.');
 };
 
-// --- Inicia todo o processo ---
-startServer().catch(err => {
-    // Adicionamos um log mais detalhado aqui
-    logError('❌ Erro fatal e não capturado durante a inicialização do servidor:', err);
-    process.exit(1);
-});
+startServer();
