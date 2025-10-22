@@ -7,20 +7,35 @@ const openai = new OpenAI({
 });
 
 // Modelo de embedding otimizado para performance e custo
-const EMBEDDING_MODEL = 'text-embedding-3-small'; 
-// Este modelo da OpenAI é mais novo, mais barato e mais performático que o 'ada-002'.
-// Sua dimensão é 1536, então o tipo VECTOR(1536) no model está correto.
+const EMBEDDING_MODEL = 'text-embedding-3-small';
 
 /**
- * Converte um único texto ou um array de textos em vetores (embeddings).
- * @param {string|string[]} texts - O texto ou textos a serem convertidos.
+ * Converte um único texto em um vetor (embedding).
+ * @param {string} text - O texto a ser convertido.
+ * @returns {Promise<number[]>} O vetor de embedding.
+ */
+export const createEmbedding = async (text) => {
+  // Se o texto for inválido, retorna null para evitar erros.
+  // O model do Criterion deve lidar com a conversão de null para um Buffer.
+  if (!text || typeof text !== 'string' || text.trim() === '') {
+    return null;
+  }
+
+  // Reutiliza a função plural, que já lida com a chamada da API.
+  const embeddings = await createEmbeddings([text]);
+  
+  // Retorna apenas o primeiro (e único) embedding do array.
+  return embeddings[0];
+};
+
+/**
+ * Converte um array de textos em um array de vetores (embeddings).
+ * @param {string[]} texts - Os textos a serem convertidos.
  * @returns {Promise<number[][]>} Um array de vetores.
  */
 export const createEmbeddings = async (texts) => {
-  // Garante que a entrada seja sempre um array para a API
   const inputText = Array.isArray(texts) ? texts : [texts];
 
-  // Filtra textos vazios para não gastar chamadas de API
   const validTexts = inputText.filter(t => t && typeof t === 'string' && t.trim() !== '');
   if (validTexts.length === 0) {
     return [];
@@ -32,11 +47,9 @@ export const createEmbeddings = async (texts) => {
       input: validTexts,
     });
 
-    // Retorna apenas o array de vetores
     return response.data.map(item => item.embedding);
   } catch (err) {
     error('Falha ao criar embeddings com a API da OpenAI:', err.message);
-    // Lançar o erro permite que o serviço que chamou decida como lidar com a falha
     throw new Error('Falha na geração de embeddings.');
   }
 };

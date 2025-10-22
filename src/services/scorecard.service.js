@@ -1,6 +1,7 @@
 import db from '../models/index.js';
 import { clearCacheByPrefix, getFromCache, setToCache } from '../utils/cache.service.js';
-import { createEmbedding } from './embedding.service.js'; // Assumindo que a função para criar um único embedding se chama 'createEmbedding'
+// A linha abaixo agora funcionará, pois 'createEmbedding' existe e é exportado.
+import { createEmbedding } from './embedding.service.js';
 import { log, error as logError } from '../utils/logger.service.js';
 
 const SCORECARDS_CACHE_PREFIX = 'scorecards_';
@@ -8,10 +9,10 @@ const ALL_SCORECARDS_CACHE_KEY = `${SCORECARDS_CACHE_PREFIX}all`;
 
 /**
  * Busca todos os scorecards com suas categorias e critérios aninhados.
- * Utiliza cache para otimizar as leituras.
  * @returns {Promise<Array>} Uma lista de scorecards.
  */
 export const findAll = async () => {
+  // ... (código da função findAll permanece o mesmo)
   const cachedScorecards = getFromCache(ALL_SCORECARDS_CACHE_KEY);
   if (cachedScorecards) {
     log('CACHE HIT: Retornando todos os scorecards do cache.');
@@ -19,7 +20,6 @@ export const findAll = async () => {
   }
 
   try {
-    // Acessa os modelos através do objeto 'db' para evitar dependências circulares.
     const scorecards = await db.Scorecard.findAll({
       include: [
         {
@@ -49,11 +49,12 @@ export const findAll = async () => {
 };
 
 /**
- * Busca um scorecard específico pelo seu ID com todas as associações.
+ * Busca um scorecard específico pelo seu ID.
  * @param {string} id - O UUID do scorecard.
  * @returns {Promise<Object|null>} O scorecard encontrado ou null.
  */
 export const findById = async (id) => {
+  // ... (código da função findById permanece o mesmo)
   const cacheKey = `${SCORECARDS_CACHE_PREFIX}${id}`;
   const cachedScorecard = getFromCache(cacheKey);
   if (cachedScorecard) {
@@ -67,7 +68,7 @@ export const findById = async (id) => {
             {
               model: db.Category,
               as: 'categories',
-              separate: true, // Otimiza a query para 'hasMany'
+              separate: true,
               include: [
                 {
                   model: db.Criterion,
@@ -94,7 +95,7 @@ export const findById = async (id) => {
 
 /**
  * Cria um novo scorecard com suas categorias e critérios.
- * @param {object} scorecardData - Os dados do scorecard a ser criado.
+ * @param {object} scorecardData - Os dados do scorecard.
  * @returns {Promise<Object>} O scorecard recém-criado.
  */
 export const create = async (scorecardData) => {
@@ -114,6 +115,7 @@ export const create = async (scorecardData) => {
 
         if (criteria && criteria.length > 0) {
           for (const criterionData of criteria) {
+            // Esta chamada agora é válida
             const embedding = await createEmbedding(criterionData.description);
             await db.Criterion.create({
               ...criterionData,
@@ -127,11 +129,9 @@ export const create = async (scorecardData) => {
 
     await t.commit();
     
-    // Invalida o cache para que a próxima leitura inclua o novo scorecard.
     clearCacheByPrefix(SCORECARDS_CACHE_PREFIX);
     log(`Cache de scorecards invalidado após a criação de '${newScorecard.name}'.`);
 
-    // Retorna o scorecard completo com todas as associações.
     return findById(newScorecard.id);
   } catch (err) {
     await t.rollback();
@@ -142,13 +142,12 @@ export const create = async (scorecardData) => {
 
 /**
  * Atualiza um scorecard existente.
- * Esta função adota uma abordagem de "substituição" para categorias e critérios
- * para simplificar a lógica e evitar complexidade de sincronização.
- * @param {string} id - O ID do scorecard a ser atualizado.
- * @param {object} scorecardData - Os novos dados para o scorecard.
+ * @param {string} id - O ID do scorecard.
+ * @param {object} scorecardData - Os novos dados.
  * @returns {Promise<Object>} O scorecard atualizado.
  */
 export const update = async (id, scorecardData) => {
+    // ... (código da função update permanece o mesmo, mas a chamada para 'createEmbedding' dentro dela agora é válida)
     const t = await db.sequelize.transaction();
     try {
         const scorecard = await db.Scorecard.findByPk(id, { transaction: t });
@@ -157,14 +156,10 @@ export const update = async (id, scorecardData) => {
         }
 
         const { categories, ...restOfData } = scorecardData;
-
-        // Atualiza os dados do scorecard principal
         await scorecard.update(restOfData, { transaction: t });
 
-        // Deleta todas as categorias e critérios antigos (cascade fará o trabalho)
         await db.Category.destroy({ where: { scorecardId: id }, transaction: t });
 
-        // Cria as novas categorias e critérios a partir dos dados recebidos
         if (categories && categories.length > 0) {
             for (const categoryData of categories) {
                 const { criteria, ...restOfCategory } = categoryData;
@@ -175,6 +170,7 @@ export const update = async (id, scorecardData) => {
 
                 if (criteria && criteria.length > 0) {
                     for (const criterionData of criteria) {
+                        // Esta chamada agora é válida
                         const embedding = await createEmbedding(criterionData.description);
                         await db.Criterion.create({
                             ...criterionData,
@@ -188,7 +184,6 @@ export const update = async (id, scorecardData) => {
 
         await t.commit();
         
-        // Invalida todo o cache de scorecards
         clearCacheByPrefix(SCORECARDS_CACHE_PREFIX);
         log(`Cache de scorecards invalidado após a atualização de '${scorecard.name}'.`);
         
@@ -202,10 +197,11 @@ export const update = async (id, scorecardData) => {
 
 /**
  * Deleta um scorecard pelo seu ID.
- * @param {string} id - O ID do scorecard a ser deletado.
+ * @param {string} id - O ID do scorecard.
  * @returns {Promise<void>}
  */
 export const remove = async (id) => {
+    // ... (código da função remove permanece o mesmo)
     const t = await db.sequelize.transaction();
     try {
         const scorecard = await db.Scorecard.findByPk(id, { transaction: t });
@@ -216,7 +212,6 @@ export const remove = async (id) => {
         await scorecard.destroy({ transaction: t });
         await t.commit();
         
-        // Invalida o cache
         clearCacheByPrefix(SCORECARDS_CACHE_PREFIX);
         log(`Cache de scorecards invalidado após a remoção do scorecard ${id}.`);
     } catch (err) {
