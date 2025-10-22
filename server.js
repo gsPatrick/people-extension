@@ -33,97 +33,52 @@ const TALENTS_CACHE_KEY = 'all_talents';
  */
 const initializeDatabase = async () => {
     log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize) ---');
+    const connection = await sequelize.connectionManager.getConnection();
     
     try {
-        // Passo 1: Sincronizar os modelos primeiro
-        log('Sincronizando models com o banco de dados (alter: true)...');
-        await sequelize.sync({ force: true });
-        log('✅ Models sincronizados com sucesso.');
-
-        // Passo 2: Tentar carregar VSS (opcional)
-        try {
-            // Lista de possíveis caminhos para a extensão
-            const possiblePaths = [
-                process.env.VSS_EXTENSION_PATH, // Caminho definido no Dockerfile
-                '/app/extensions/vss0.so', // Extensão pré-compilada
-                path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node'),
-                path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'vss0.node'),
-                path.join(__dirname, 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node'),
-                path.join(__dirname, '..', 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node'),
-                '/app/node_modules/sqlite-vss/build/Release/vss0.node', // Caminho absoluto para Docker
-            ].filter(Boolean); // Remove valores null/undefined
-
-            let vssPath = null;
-            log('🔍 Procurando extensão VSS nos seguintes caminhos:');
-            for (const testPath of possiblePaths) {
-                log(`   Testando: ${testPath}`);
-                if (fs.existsSync(testPath)) {
-                    vssPath = testPath;
-                    log(`   ✅ Extensão VSS encontrada em: ${vssPath}`);
-                    break;
-                } else {
-                    log(`   ❌ Não encontrado`);
-                }
-            }
-
-            if (!vssPath) {
-                // Último recurso: procurar recursivamente
-                log('🔍 Tentando busca recursiva no diretório node_modules...');
-                const nodeModulesPath = path.join(process.cwd(), 'node_modules');
-                if (fs.existsSync(nodeModulesPath)) {
-                    const findVssRecursive = (dir) => {
-                        try {
-                            const files = fs.readdirSync(dir);
-                            for (const file of files) {
-                                const fullPath = path.join(dir, file);
-                                const stat = fs.statSync(fullPath);
-                                if (stat.isDirectory() && !file.startsWith('.')) {
-                                    const result = findVssRecursive(fullPath);
-                                    if (result) return result;
-                                } else if (file === 'vss0.node') {
-                                    return fullPath;
-                                }
-                            }
-                        } catch (e) {
-                            // Ignorar erros de permissão
-                        }
-                        return null;
-                    };
-                    vssPath = findVssRecursive(nodeModulesPath);
-                    if (vssPath) {
-                        log(`   ✅ Extensão VSS encontrada via busca recursiva: ${vssPath}`);
-                    }
-                }
-            }
-
-            if (!vssPath) {
-                throw new Error('Extensão VSS não encontrada em nenhum caminho conhecido');
-            }
-
-            // Tentar carregar a extensão
-            const normalizedPath = vssPath.replace(/\\/g, '/');
-            log(`📦 Carregando extensão VSS de: ${normalizedPath}`);
-            await sequelize.query(`SELECT load_extension('${normalizedPath}')`);
-            log('✅ Extensão VSS carregada com sucesso.');
-
-            // Criar tabela virtual VSS
-            await sequelize.query(`
-                CREATE VIRTUAL TABLE IF NOT EXISTS vss_criteria USING vss0(
-                    embedding(1536)
-                );
-            `);
-            log('✅ Tabela virtual VSS criada com sucesso.');
-
-        } catch (vssError) {
-            logError('Não foi possível carregar VSS (busca vetorial desabilitada):', {
-                message: vssError.message,
-                hint: 'Para habilitar VSS, execute: npm rebuild sqlite-vss --build-from-source'
+        await new Promise((resolve, reject) => {
+            connection.enableLoadExtension(true, (err) => {
+                if (err) return reject(err);
+                log('✅ Carregamento de extensões habilitado na conexão.');
+                resolve();
             });
-            log('⚠️ Servidor continuará sem suporte a VSS (busca vetorial).');
-        }
+        });
+
+        const vssPath = path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node');
+        
+        await new Promise((resolve, reject) => {
+            connection.loadExtension(vssPath, (err) => {
+                if (err) return reject(err);
+                log('✅ Extensão VSS carregada com sucesso na conexão do Sequelize.');
+                resolve();
+            });
+        });
 
     } catch (err) {
-        logError('Falha crítica ao inicializar banco de dados:', {
+        logError('Falha crítica ao habilitar ou carregar a extensão VSS.', { message: err.message, stack: err.stack });
+        process.exit(1);
+    } finally {
+        sequelize.connectionManager.releaseConnection(connection);
+    }
+
+    try {
+        log('Sincronizando models com o banco de dados (force: true)...');
+        // --- INÍCIO DA MUDANÇA TEMPORÁRIA ---
+        // AVISO: Esta linha é DESTRUTIVA. Ela apagará todas as tabelas e dados existentes.
+        // Use apenas UMA VEZ para forçar a recriação do banco de dados.
+        await sequelize.sync({ force: true });
+        // --- FIM DA MUDANÇA TEMPORÁRIA ---
+        log('✅ Models sincronizados com sucesso (tabelas recriadas).');
+
+        await sequelize.query(`
+            CREATE VIRTUAL TABLE IF NOT EXISTS vss_criteria USING vss0(
+                embedding(1536)
+            );
+        `);
+        log('✅ Tabela virtual VSS verificada/criada com sucesso.');
+
+    } catch (err) {
+        logError('Falha crítica ao sincronizar modelos ou criar tabela virtual.', {
             message: err.message,
             stack: err.stack,
             originalError: err.original?.message
