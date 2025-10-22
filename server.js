@@ -35,39 +35,38 @@ const initializeDatabase = async () => {
     log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize) ---');
     
     try {
-        // Passo 1: Sincronizar os modelos primeiro
-        log('Sincronizando models com o banco de dados (alter: true)...');
+        // --- PASSO 1: MUDANÇA TEMPORÁRIA ---
+        // Usar 'force: true' para apagar e recriar todas as tabelas, garantindo que
+        // o esquema do banco de dados corresponda 100% aos modelos Sequelize.
+        // ISSO IRÁ APAGAR TODOS OS DADOS EXISTENTES.
+        log('Sincronizando models com o banco de dados (force: true)...');
         await sequelize.sync({ force: true });
-        log('✅ Models sincronizados com sucesso.');
-
+        log('✅ Models sincronizados com sucesso (tabelas recriadas).');
+        // --- APÓS O SUCESSO, LEMBRE-SE DE VOLTAR PARA { alter: true } ---
+        
         // Passo 2: Tentar carregar VSS (opcional)
         try {
-            // Lista de possíveis caminhos para a extensão
             const possiblePaths = [
-                process.env.VSS_EXTENSION_PATH, // Caminho definido no Dockerfile
-                '/app/extensions/vss0.so', // Extensão pré-compilada
+                process.env.VSS_EXTENSION_PATH,
+                '/app/extensions/vss0.so',
                 path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node'),
                 path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'vss0.node'),
                 path.join(__dirname, 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node'),
                 path.join(__dirname, '..', 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node'),
-                '/app/node_modules/sqlite-vss/build/Release/vss0.node', // Caminho absoluto para Docker
-            ].filter(Boolean); // Remove valores null/undefined
+                '/app/node_modules/sqlite-vss/build/Release/vss0.node',
+            ].filter(Boolean);
 
             let vssPath = null;
-            log('🔍 Procurando extensão VSS nos seguintes caminhos:');
+            log('🔍 Procurando extensão VSS...');
             for (const testPath of possiblePaths) {
-                log(`   Testando: ${testPath}`);
                 if (fs.existsSync(testPath)) {
                     vssPath = testPath;
                     log(`   ✅ Extensão VSS encontrada em: ${vssPath}`);
                     break;
-                } else {
-                    log(`   ❌ Não encontrado`);
                 }
             }
 
             if (!vssPath) {
-                // Último recurso: procurar recursivamente
                 log('🔍 Tentando busca recursiva no diretório node_modules...');
                 const nodeModulesPath = path.join(process.cwd(), 'node_modules');
                 if (fs.existsSync(nodeModulesPath)) {
@@ -76,17 +75,14 @@ const initializeDatabase = async () => {
                             const files = fs.readdirSync(dir);
                             for (const file of files) {
                                 const fullPath = path.join(dir, file);
-                                const stat = fs.statSync(fullPath);
-                                if (stat.isDirectory() && !file.startsWith('.')) {
+                                if (fs.statSync(fullPath).isDirectory() && !file.startsWith('.')) {
                                     const result = findVssRecursive(fullPath);
                                     if (result) return result;
                                 } else if (file === 'vss0.node') {
                                     return fullPath;
                                 }
                             }
-                        } catch (e) {
-                            // Ignorar erros de permissão
-                        }
+                        } catch (e) { /* Ignorar erros */ }
                         return null;
                     };
                     vssPath = findVssRecursive(nodeModulesPath);
@@ -100,13 +96,11 @@ const initializeDatabase = async () => {
                 throw new Error('Extensão VSS não encontrada em nenhum caminho conhecido');
             }
 
-            // Tentar carregar a extensão
             const normalizedPath = vssPath.replace(/\\/g, '/');
             log(`📦 Carregando extensão VSS de: ${normalizedPath}`);
             await sequelize.query(`SELECT load_extension('${normalizedPath}')`);
             log('✅ Extensão VSS carregada com sucesso.');
 
-            // Criar tabela virtual VSS
             await sequelize.query(`
                 CREATE VIRTUAL TABLE IF NOT EXISTS vss_criteria USING vss0(
                     embedding(1536)
