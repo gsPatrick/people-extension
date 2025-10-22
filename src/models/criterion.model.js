@@ -1,27 +1,29 @@
 import { Model, DataTypes } from 'sequelize';
-import { toSql } from 'pgvector';
+
+// Com SQLite, não usamos 'pg-vector'. Os vetores são armazenados como BLOBs (Binary Large Objects).
+// Criamos funções helper para converter entre o array de números da IA e o Buffer do banco.
 
 /**
- * Adiciona o tipo de dado 'VECTOR' ao objeto DataTypes do Sequelize.
- * @param {object} dataTypes - O objeto DataTypes importado do Sequelize.
+ * Converte um array de números (vetor) em um Buffer para armazenamento no SQLite.
+ * @param {number[]} vector O vetor de embedding.
+ * @returns {Buffer}
  */
-const registerVectorType = (dataTypes) => {
-  // Define a nova propriedade VECTOR diretamente no objeto DataTypes
-  dataTypes.VECTOR = function VECTOR(length) {
-    if (!length) {
-      throw new Error('Você deve especificar o comprimento do vetor. Ex: DataTypes.VECTOR(1536)');
-    }
-    // Retorna uma representação interna que o Sequelize entende
-    return {
-      type: `VECTOR(${length})`,
-      toSql: (value) => toSql(value),
-      parse: (value) => value,
-    };
-  };
+const vectorToBuffer = (vector) => {
+  if (!vector) return null;
+  const float32Array = new Float32Array(vector);
+  return Buffer.from(float32Array.buffer);
 };
 
-// Chama a função imediatamente para modificar o objeto DataTypes importado
-registerVectorType(DataTypes);
+/**
+ * Converte um Buffer do SQLite de volta para um array de números (vetor).
+ * @param {Buffer} buffer O buffer lido do banco.
+ * @returns {number[]}
+ */
+const bufferToVector = (buffer) => {
+  if (!buffer) return null;
+  const float32Array = new Float32Array(buffer.buffer, buffer.byteOffset, buffer.length / Float32Array.BYTES_PER_ELEMENT);
+  return Array.from(float32Array);
+};
 
 
 export default (sequelize) => {
@@ -40,20 +42,26 @@ export default (sequelize) => {
     description: {
       type: DataTypes.TEXT,
       allowNull: true,
-      comment: 'Instrução para a IA sobre o que e como avaliar este critério.',
     },
     weight: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 2, // 1=Baixo, 2=Médio, 3=Alto
+      defaultValue: 2,
       validate: { min: 1, max: 3 },
-      comment: 'Peso do critério para o cálculo da nota ponderada (1-3).',
     },
     embedding: {
-      // AGORA DataTypes.VECTOR existe e é uma função
-      type: DataTypes.VECTOR(1536), 
+      // Armazenamos o vetor como um BLOB
+      type: DataTypes.BLOB('long'),
       allowNull: false,
-      comment: 'Vetor de embedding gerado a partir do nome e descrição do critério.',
+      // Usamos getters e setters para fazer a conversão automaticamente
+      get() {
+        const buffer = this.getDataValue('embedding');
+        return bufferToVector(buffer);
+      },
+      set(vector) {
+        const buffer = vectorToBuffer(vector);
+        this.setDataValue('embedding', buffer);
+      }
     },
     order: {
       type: DataTypes.INTEGER,

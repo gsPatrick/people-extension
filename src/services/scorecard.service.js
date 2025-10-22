@@ -3,12 +3,11 @@ import { createEmbeddings } from './embedding.service.js';
 import { getFromCache, setToCache, clearCache } from '../utils/cache.service.js';
 import { log, error } from '../utils/logger.service.js';
 
-// Constantes para as chaves do cache
 const ALL_SCORECARDS_CACHE_KEY = 'scorecards_all_list';
 const SCORECARD_ID_CACHE_PREFIX = 'scorecard_id_';
 
 /**
- * Cria um novo scorecard. Otimizado com transações, bulk inserts e cálculo de embeddings.
+ * Cria um novo scorecard.
  */
 export const create = async (scorecardData) => {
   const transaction = await sequelize.transaction();
@@ -29,10 +28,8 @@ export const create = async (scorecardData) => {
       }, { transaction });
 
       const validCriteria = catData.criteria?.filter(c => c.name && c.name.trim());
-      if (validCriteria && validCriteria.length > 0) {
+      if (validCriteria?.length > 0) {
         const criteriaTextsForEmbedding = validCriteria.map(c => `${c.name}: ${c.description || ''}`);
-        
-        log(`Gerando embeddings para ${criteriaTextsForEmbedding.length} critérios da categoria "${category.name}"...`);
         const embeddings = await createEmbeddings(criteriaTextsForEmbedding);
 
         const criteriaToCreate = validCriteria.map((crit, critIndex) => ({
@@ -48,7 +45,7 @@ export const create = async (scorecardData) => {
     }
 
     await transaction.commit();
-    clearCache(ALL_SCORECARDS_CACHE_KEY); // Invalida o cache da lista
+    clearCache(ALL_SCORECARDS_CACHE_KEY);
 
     log(`Scorecard "${scorecard.name}" criado com sucesso.`);
     return findById(scorecard.id);
@@ -60,27 +57,27 @@ export const create = async (scorecardData) => {
 };
 
 /**
- * Busca todos os scorecards. Otimizado com cache e exclusão do campo 'embedding'.
+ * Busca todos os scorecards. Otimizado com cache.
  */
 export const findAll = async () => {
   const cachedScorecards = getFromCache(ALL_SCORECARDS_CACHE_KEY);
   if (cachedScorecards) return cachedScorecards;
 
-  log("Buscando todos os scorecards do banco de dados...");
+  log("Buscando todos os scorecards do banco de dados (SQLite)...");
   const scorecards = await Scorecard.findAll({
     order: [['name', 'ASC']],
-    include: {
+    include: [{
       model: Category,
       as: 'categories',
       separate: true,
       order: [['order', 'ASC']],
-      include: {
+      include: [{
         model: Criterion,
         as: 'criteria',
         attributes: { exclude: ['embedding'] },
         order: [['order', 'ASC']],
-      },
-    },
+      }],
+    }],
   });
 
   setToCache(ALL_SCORECARDS_CACHE_KEY, scorecards);
@@ -88,23 +85,23 @@ export const findAll = async () => {
 };
 
 /**
- * Busca um scorecard por ID. Otimizado com cache. Inclui todos os dados (com embeddings).
+ * Busca um scorecard por ID. Otimizado com cache.
  */
 export const findById = async (id) => {
   const cacheKey = `${SCORECARD_ID_CACHE_PREFIX}${id}`;
   const cachedScorecard = getFromCache(cacheKey);
   if (cachedScorecard) return cachedScorecard;
 
-  log(`Buscando scorecard ID ${id} do banco de dados...`);
+  log(`Buscando scorecard ID ${id} do banco de dados (SQLite)...`);
   const scorecard = await Scorecard.findByPk(id, {
-    include: {
+    include: [{
       model: Category,
       as: 'categories',
-      include: {
+      include: [{
         model: Criterion,
         as: 'criteria',
-      },
-    },
+      }],
+    }],
     order: [
       [{ model: Category, as: 'categories' }, 'order', 'ASC'],
       [{ model: Category, as: 'categories' }, { model: Criterion, as: 'criteria' }, 'order', 'ASC']
@@ -112,19 +109,18 @@ export const findById = async (id) => {
   });
   
   if (scorecard) {
-      setToCache(cacheKey, scorecard);
+    setToCache(cacheKey, scorecard);
   }
   return scorecard;
 };
 
 /**
  * Atualiza um scorecard.
- * Estratégia otimizada: atualiza o principal e recria os filhos de forma transacional.
  */
 export const update = async (id, scorecardData) => {
   const transaction = await sequelize.transaction();
   try {
-    const scorecard = await Scorecard.findByPk(id);
+    const scorecard = await Scorecard.findByPk(id, { transaction });
     if (!scorecard) return null;
 
     await Category.destroy({ where: { scorecardId: id }, transaction });
@@ -134,9 +130,8 @@ export const update = async (id, scorecardData) => {
 
     for (const [catIndex, catData] of scorecardData.categories.entries()) {
       const category = await Category.create({ name: catData.name, scorecardId: id, order: catIndex }, { transaction });
-      
       const validCriteria = catData.criteria?.filter(c => c.name && c.name.trim());
-      if (validCriteria && validCriteria.length > 0) {
+      if (validCriteria?.length > 0) {
         const criteriaTextsForEmbedding = validCriteria.map(c => `${c.name}: ${c.description || ''}`);
         const embeddings = await createEmbeddings(criteriaTextsForEmbedding);
         const criteriaToCreate = validCriteria.map((crit, critIndex) => ({
@@ -152,7 +147,6 @@ export const update = async (id, scorecardData) => {
     }
 
     await transaction.commit();
-
     clearCache(ALL_SCORECARDS_CACHE_KEY);
     clearCache(`${SCORECARD_ID_CACHE_PREFIX}${id}`);
 
@@ -172,7 +166,7 @@ export const remove = async (id) => {
   const scorecard = await Scorecard.findByPk(id);
   if (!scorecard) return false;
 
-  await scorecard.destroy(); // onDelete: CASCADE limpa categorias e critérios.
+  await scorecard.destroy();
 
   clearCache(ALL_SCORECARDS_CACHE_KEY);
   clearCache(`${SCORECARD_ID_CACHE_PREFIX}${id}`);

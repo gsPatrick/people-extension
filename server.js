@@ -12,16 +12,11 @@ import { initializeSessionService } from './src/Core/session.service.js';
 import { initializeAuthStorage } from './src/Inhire/Auth/authStorage.service.js';
 import { performLogin } from './src/Core/Auth-Flow/authOrchestrator.js';
 import apiRoutes from './src/routes/apiRoutes.js';
-
-// **NOVA IMPORTAÇÃO** para o Sequelize
-import db from './src/models/index.js'; 
-
-// Importações existentes
-import './src/Platform/Cache/cache.service.js'; // Note que este cache é o de arquivos, não o de memória
+import db from './src/models/index.js';
+import { syncEntityCache } from './src/utils/sync.service.js';
 import { fetchAllJobsWithDetails } from './src/Core/Job-Flow/jobOrchestrator.js';
 import { fetchAllTalentsForSync, fetchCandidatesForJob } from './src/Core/management-flow/managementOrchestrator.js'; 
 import { getFromCache } from './src/utils/cache.service.js';
-import { syncEntityCache } from './src/utils/sync.service.js';
 import { createUser, findUserByEmail } from './src/Core/User-Flow/userService.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -32,42 +27,40 @@ const PORT = process.env.PORT || 4000;
 const JOBS_CACHE_KEY = 'all_jobs_with_details';
 const TALENTS_CACHE_KEY = 'all_talents';
 
-// ==========================================================
-// NOVA FUNÇÃO DE INICIALIZAÇÃO DO BANCO DE DADOS
-// ==========================================================
 /**
- * Garante que a extensão pgvector exista e sincroniza os models do Sequelize com o banco de dados.
+ * Sincroniza os models do Sequelize com o banco de dados SQLite.
+ * Cria o arquivo do banco e as tabelas se não existirem.
  */
 const initializeDatabase = async () => {
-    log('--- INICIALIZAÇÃO DO BANCO DE DADOS (PostgreSQL + Sequelize) ---');
+    log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize) ---');
     try {
-        log('Verificando se a extensão "vector" existe...');
-        await db.sequelize.query('CREATE EXTENSION IF NOT EXISTS vector;');
-        log('✅ Extensão "vector" verificada/criada com sucesso.');
-    } catch (err) {
-        logError('Falha ao tentar criar a extensão "vector".', 'Isso é esperado se seu usuário do banco não tiver permissões de superusuário.');
-        log('AVISO: Por favor, garanta que a extensão "vector" foi instalada MANUALMENTE no seu banco de dados na Hostinger.');
-    }
-
-    try {
+        // A extensão VSS já é carregada no `models/index.js`
+        // O `sync` criará o arquivo do banco se ele não existir
         log('Sincronizando models com o banco de dados (alter: true)...');
         await db.sequelize.sync({ alter: true });
-        log('✅ Models sincronizados com sucesso. As tabelas estão prontas.');
+        
+        // Cria a tabela virtual VSS para os critérios, se ainda não existir.
+        // Isso é necessário para a busca vetorial.
+        await db.sequelize.query(`
+            CREATE VIRTUAL TABLE IF NOT EXISTS vss_criteria USING vss0(
+                embedding(1536)
+            );
+        `);
+        log('✅ Models e tabela virtual VSS sincronizados com sucesso.');
     } catch (err) {
-        logError('Falha crítica ao sincronizar os models com o banco de dados.', err);
-        process.exit(1); // Encerra o servidor se não conseguir criar/alterar as tabelas.
+        logError('Falha crítica ao sincronizar os models/VSS com o banco de dados.', err);
+        process.exit(1);
     }
 };
 
-// Funções de sincronização e pré-carregamento (sem alterações)
 const syncJobs = () => syncEntityCache(JOBS_CACHE_KEY, fetchAllJobsWithDetails);
 const syncTalents = () => syncEntityCache(TALENTS_CACHE_KEY, fetchAllTalentsForSync);
 
 const prefetchAllCandidates = async () => {
-  log('--- PREFETCH WORKER: Iniciando pré-carregamento de todos os candidatos ---');
+  log('--- PREFETCH WORKER: Iniciando pré-carregamento de candidatos InHire ---');
   const allJobs = getFromCache(JOBS_CACHE_KEY);
   if (!allJobs || allJobs.length === 0) {
-    logError('PREFETCH WORKER: Não há vagas no cache para buscar candidatos. Pulando.');
+    logError('PREFETCH WORKER: Não há vagas InHire no cache para buscar candidatos. Pulando.');
     return;
   }
   log(`PREFETCH WORKER: Encontradas ${allJobs.length} vagas. Buscando candidatos para cada uma...`);
@@ -77,7 +70,7 @@ const prefetchAllCandidates = async () => {
     await Promise.all(batch.map(job => fetchCandidatesForJob(job.id)));
     log(`PREFETCH WORKER: Lote de ${batch.length} vagas processado.`);
   }
-  log('--- PREFETCH WORKER: Pré-carregamento de todos os candidatos concluído. ---');
+  log('--- PREFETCH WORKER: Pré-carregamento de candidatos InHire concluído. ---');
 };
 
 const seedAdminUser = async () => {
@@ -109,7 +102,6 @@ const startServer = async () => {
   app.use(express.static(path.join(__dirname, 'public')));
   log('--- INICIALIZAÇÃO DO SERVIDOR ---');
 
-  // **NOVO PASSO ADICIONADO AQUI**
   await initializeDatabase();
 
   initializeSessionService(memoryStorageAdapter);
@@ -144,10 +136,9 @@ const startServer = async () => {
     prefetchAllCandidates().catch(err => logError("Erro durante o pré-carregamento em segundo plano:", err));
   });
 
-  // Agendamento de tarefas recorrentes
   setInterval(syncJobs, 60000);
   setInterval(syncTalents, 60000);
-  log('🔄 Sincronização periódica de Vagas e Talentos agendada a cada 60 segundos.');
+  log('🔄 Sincronização periódica de Vagas e Talentos agendada a cada 60s.');
 };
 
 startServer();

@@ -3,16 +3,12 @@ import { createEmbeddings } from './embedding.service.js';
 import { analyzeCriterionWithAI } from './ai.service.js';
 import { log, error } from '../utils/logger.service.js';
 import { sequelize } from '../models';
-import { toSql } from 'pgvector';
 
-/**
- * Quebra o perfil em pedaços de texto significativos para análise.
- */
 const chunkProfile = (profileData) => {
   const chunks = [];
   if (profileData.headline) chunks.push(`Título: ${profileData.headline}`);
   if (profileData.about) chunks.push(`Sobre: ${profileData.about}`);
-  if (profileData.skills && profileData.skills.length > 0) chunks.push(`Competências: ${profileData.skills.join(', ')}`);
+  if (profileData.skills?.length) chunks.push(`Competências: ${profileData.skills.join(', ')}`);
   if (profileData.experience) {
     profileData.experience.forEach(exp => {
       chunks.push(`Experiência: ${exp.title} na ${exp.companyName}. ${exp.description || ''}`);
@@ -21,12 +17,9 @@ const chunkProfile = (profileData) => {
   return chunks.filter(Boolean);
 };
 
-/**
- * Orquestra a análise de match instantânea usando a arquitetura híbrida.
- */
 export const analyze = async (scorecardId, profileData) => {
   const startTime = Date.now();
-  log(`Iniciando análise HÍBRIDA para "${profileData.name}" com scorecard ${scorecardId}`);
+  log(`Iniciando análise HÍBRIDA (SQLite-VSS) para "${profileData.name}"`);
 
   try {
     const scorecard = await findScorecardById(scorecardId);
@@ -37,28 +30,49 @@ export const analyze = async (scorecardId, profileData) => {
     
     const profileEmbeddings = await createEmbeddings(profileChunks);
 
+    // Cria uma tabela temporária em memória para os vetores do perfil
+    await sequelize.query('CREATE VIRTUAL TABLE temp_profile_embeddings USING vss0(embedding(1536));');
+    
+    // Insere os vetores do perfil na tabela temporária
+    const insertStmt = await sequelize.prepare('INSERT INTO temp_profile_embeddings (rowid, embedding) VALUES (?, ?)');
+    for (let i = 0; i < profileEmbeddings.length; i++) {
+        await insertStmt.run(i + 1, vectorToBuffer(profileEmbeddings[i]));
+    }
+    await insertStmt.finalize();
+
     const categoryResults = [];
     let totalWeightedScore = 0;
     let totalWeight = 0;
 
     for (const category of scorecard.categories) {
-      const criteriaEvaluations = [];
-      let categoryWeightedScore = 0;
-      let categoryTotalWeight = 0;
-
-      // Cria um array de promises para executar as análises de IA em paralelo
       const analysisPromises = category.criteria.map(async (criterion) => {
         if (!criterion.embedding) return null;
 
-        const relevantChunks = await findRelevantChunks(criterion.embedding, profileChunks, profileEmbeddings);
-        const evaluation = await analyzeCriterionWithAI(criterion, relevantChunks);
+        // **BUSCA VETORIAL NATIVA COM SQLITE-VSS**
+        const query = `
+          SELECT c.text, v.distance
+          FROM temp_profile_embeddings AS v
+          JOIN (SELECT rowid, value AS text FROM json_each(:profileChunks)) AS c ON v.rowid = c.rowid + 1
+          WHERE vss_search(v.embedding, vss_search_params(?, 3))
+        `;
+        const relevantChunks = await sequelize.query(query, {
+            replacements: { 
+                profileChunks: JSON.stringify(profileChunks),
+                queryVector: vectorToBuffer(criterion.embedding)
+            },
+            type: sequelize.QueryTypes.SELECT,
+        });
         
+        const evaluation = await analyzeCriterionWithAI(criterion, relevantChunks.map(r => r.text));
         return { evaluation, weight: criterion.weight };
       });
 
-      // Executa todas as análises da categoria em paralelo
       const resolvedEvaluations = await Promise.all(analysisPromises);
       
+      let categoryWeightedScore = 0;
+      let categoryTotalWeight = 0;
+      const criteriaEvaluations = [];
+
       resolvedEvaluations.forEach(result => {
         if (result) {
           criteriaEvaluations.push(result.evaluation);
@@ -68,83 +82,35 @@ export const analyze = async (scorecardId, profileData) => {
       });
       
       const categoryScore = categoryTotalWeight > 0 ? Math.round((categoryWeightedScore / categoryTotalWeight) * 100) : 0;
-      
       totalWeightedScore += categoryWeightedScore;
       totalWeight += categoryTotalWeight;
       
-      categoryResults.push({
-        name: category.name,
-        score: categoryScore,
-        criteria: criteriaEvaluations,
-      });
+      categoryResults.push({ name: category.name, score: categoryScore, criteria: criteriaEvaluations });
     }
+
+    // Limpa a tabela temporária
+    await sequelize.query('DROP TABLE temp_profile_embeddings;');
 
     const overallScore = totalWeight > 0 ? Math.round((totalWeightedScore / totalWeight) * 100) : 0;
 
-    const result = {
-      overallScore,
-      profileName: profileData.name,
-      profileHeadline: profileData.headline,
-      categories: categoryResults,
-    };
+    const result = { overallScore, profileName: profileData.name, profileHeadline: profileData.headline, categories: categoryResults };
 
     const duration = Date.now() - startTime;
-    log(`Análise HÍBRIDA concluída em ${duration}ms. Score: ${overallScore}%`);
+    log(`Análise HÍBRIDA (SQLite-VSS) concluída em ${duration}ms. Score: ${overallScore}%`);
     
     return result;
 
   } catch (err) {
-    error('Erro durante a análise de match HÍBRIDA:', err.message);
+    // Garante que a tabela temporária seja limpa em caso de erro
+    await sequelize.query('DROP TABLE IF EXISTS temp_profile_embeddings;').catch(() => {});
+    error('Erro durante a análise de match HÍBRIDA (SQLite-VSS):', err.message);
     throw err;
   }
 };
 
-/**
- * Encontra os trechos de texto mais relevantes de um perfil para um dado critério
- * usando busca vetorial NATIVA do pgvector para máxima performance.
- */
-async function findRelevantChunks(criterionEmbedding, profileChunks, profileEmbeddings, topK = 3) {
-  try {
-    // Para esta função, precisamos dos vetores e dos textos.
-    // Vamos criar uma estrutura temporária para a query.
-    const tempTableName = `temp_profile_chunks_${Date.now()}`;
-
-    // Esta query usa `unnest` para criar uma "tabela virtual" a partir dos nossos arrays,
-    // permitindo que o `pgvector` opere sobre ela.
-    const query = `
-      SELECT text
-      FROM unnest(:texts::text[], :embeddings::vector[]) AS t(text, embedding)
-      ORDER BY t.embedding <=> :criterionEmbedding::vector
-      LIMIT :limit;
-    `;
-
-    const results = await sequelize.query(query, {
-      replacements: {
-        texts: profileChunks,
-        embeddings: profileEmbeddings.map(e => toSql(e)),
-        criterionEmbedding: toSql(JSON.parse(criterionEmbedding)),
-        limit: topK,
-      },
-      type: sequelize.QueryTypes.SELECT,
-    });
-    
-    return results.map(row => row.text);
-
-  } catch (err) {
-      error("Erro na busca por chunks relevantes com pgvector:", err.message);
-      // Fallback para o primeiro chunk em caso de erro no DB
-      return profileChunks.slice(0, 1);
-  }
-}
-
-// Helper para cálculo de similaridade (usado apenas como fallback ou em lógicas não-SQL)
-function cosineSimilarity(vecA, vecB) {
-  let dotProduct = 0, normA = 0, normB = 0;
-  for (let i = 0; i < vecA.length; i++) {
-    dotProduct += vecA[i] * vecB[i];
-    normA += vecA[i] * vecA[i];
-    normB += vecB[i] * vecB[i];
-  }
-  const denominator = Math.sqrt(normA) * Math.sqrt(normB);
-  return denominator === 0 ? 0 : dotProduct / denominator;
-}
+// Funções helper para conversão de vetor para buffer
+const vectorToBuffer = (vector) => {
+  if (!vector) return null;
+  const float32Array = new Float32Array(vector);
+  return Buffer.from(float32Array.buffer);
+};

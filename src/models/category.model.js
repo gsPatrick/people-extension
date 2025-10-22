@@ -3,17 +3,15 @@ import { Model, DataTypes } from 'sequelize';
 export default (sequelize) => {
   class Category extends Model {
     static associate(models) {
-      // Define a associação: uma Categoria "pertence a um" Scorecard.
       this.belongsTo(models.Scorecard, {
         foreignKey: 'scorecardId',
         as: 'scorecard',
       });
 
-      // Define a associação: uma Categoria "tem muitos" Critérios.
       this.hasMany(models.Criterion, {
         as: 'criteria',
         foreignKey: 'categoryId',
-        onDelete: 'CASCADE', // Se uma categoria for deletada, seus critérios também serão.
+        onDelete: 'CASCADE',
         hooks: true,
       });
     }
@@ -28,11 +26,8 @@ export default (sequelize) => {
     name: {
       type: DataTypes.STRING,
       allowNull: false,
-      validate: {
-        notEmpty: true,
-      }
+      validate: { notEmpty: true },
     },
-    // Define a ordem em que a categoria deve aparecer na interface.
     order: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -42,7 +37,7 @@ export default (sequelize) => {
     sequelize,
     modelName: 'Category',
     tableName: 'categories',
-    timestamps: false, // Geralmente não precisamos de timestamps para categorias.
+    timestamps: false,
   });
 
   return Category;
