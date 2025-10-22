@@ -5,7 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import _ from 'lodash';
-import sqliteVss from 'sqlite-vss';
+import { createRequire } from 'node:module'; // ✅ Para importar CommonJS no ESM
 
 // Importando serviços e inicializadores
 import { configureLogger, log, error as logError } from './src/utils/logger.service.js';
@@ -21,6 +21,10 @@ import { getFromCache } from './src/utils/cache.service.js';
 import { createUser, findUserByEmail } from './src/Core/User-Flow/userService.js';
 import apiRoutes from './src/routes/apiRoutes.js';
 
+// ✅ Import do sqlite-vss CommonJS no ESM
+const require = createRequire(import.meta.url);
+const sqliteVss = require('sqlite-vss');
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -33,31 +37,40 @@ const TALENTS_CACHE_KEY = 'all_talents';
  * Centraliza a inicialização do banco de dados.
  */
 const initializeDatabase = async () => {
-    log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize + VSS) ---');
-
+    log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize) ---');
+    
     try {
-        // 🔄 Sincroniza models com o banco
-        log('Sincronizando models com o banco de dados...');
-        await sequelize.sync({ alter: true });
-        log('✅ Models sincronizados com sucesso.');
+        // --- PASSO 1: Sincroniza tabelas
+        log('Sincronizando models com o banco de dados (force: true)...');
+        await sequelize.sync({ force: true }); // ⚠️ Apaga todos os dados existentes
+        log('✅ Models sincronizados com sucesso (tabelas recriadas).');
 
-        // 🪄 Inicializa extensão VSS nativamente
+        // --- PASSO 2: Carregar VSS via sqlite-vss
         try {
-            const db = sequelize.connectionManager.getConnection(); // conexão bruta
-            await sqliteVss.load(db); // carrega extensão via API oficial
-            log('✅ Extensão sqlite-vss carregada com sucesso.');
+            log('🔍 Carregando extensão VSS via sqlite-vss...');
+            
+            // sqliteVss fornece caminho interno para load_extension
+            const vssPath = sqliteVss.path;
+            log(`📦 Caminho da extensão VSS: ${vssPath}`);
 
+            // Carrega extensão no SQLite
+            await sequelize.query(`SELECT load_extension('${vssPath}')`);
+            log('✅ Extensão VSS carregada com sucesso.');
+
+            // Cria tabela virtual VSS
             await sequelize.query(`
                 CREATE VIRTUAL TABLE IF NOT EXISTS vss_criteria USING vss0(
                     embedding(1536)
                 );
             `);
-            log('✅ Tabela virtual VSS criada ou existente.');
+            log('✅ Tabela virtual VSS criada com sucesso.');
+
         } catch (vssError) {
-            logError('Não foi possível carregar sqlite-vss:', {
+            logError('Não foi possível carregar VSS (busca vetorial desabilitada):', {
                 message: vssError.message,
-                hint: 'Verifique se o pacote sqlite-vss está instalado e compilado corretamente.'
+                hint: 'Verifique se o sqlite-vss está instalado corretamente e se foi rebuild se necessário'
             });
+            log('⚠️ Servidor continuará sem suporte a VSS (busca vetorial).');
         }
 
     } catch (err) {
@@ -69,6 +82,7 @@ const initializeDatabase = async () => {
         process.exit(1);
     }
 };
+
 
 
 const syncJobs = () => syncEntityCache(JOBS_CACHE_KEY, fetchAllJobsWithDetails);
