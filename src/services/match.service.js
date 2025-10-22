@@ -1,9 +1,10 @@
-// ARQUIVO COMPLETO E FINAL (HÍBRIDO OTIMIZADO): src/services/match.service.js
+// ARQUIVO COMPLETO, FINAL E CORRIGIDO: src/services/match.service.js
 
 import { findById as findScorecardById } from './scorecard.service.js';
 import { createEmbeddings } from './embedding.service.js';
 import { analyzeCriterionWithAI } from './ai.service.js';
-import { searchSimilarVectors } from './vector.service.js';
+// <-- MUDANÇA: Importamos as novas funções de gerenciamento de tabelas
+import { createProfileVectorTable, dropProfileVectorTable } from './vector.service.js';
 import { log, error as logError } from '../utils/logger.service.js';
 
 const chunkProfile = (profileData) => {
@@ -21,63 +22,54 @@ const chunkProfile = (profileData) => {
 
 export const analyze = async (scorecardId, profileData) => {
   const startTime = Date.now();
-  log(`Iniciando análise HÍBRIDA-OTIMIZADA para "${profileData.name || 'perfil sem nome'}"`);
+  // Cria um nome de tabela único para esta requisição específica
+  const tempTableName = `profile_${Date.now()}`;
+  log(`Iniciando análise com tabela temporária '${tempTableName}'`);
+  
+  let profileTable; // Variável para manter a referência da tabela
 
   try {
-    // 1. Buscas Iniciais em Paralelo (Scorecard e Embeddings do Perfil)
+    // 1. Buscas Iniciais e Preparação
     const [scorecard, profileChunks] = await Promise.all([
         findScorecardById(scorecardId),
         chunkProfile(profileData)
     ]);
 
-    if (!scorecard) {
-      const err = new Error('Scorecard não encontrado.');
-      err.statusCode = 404;
-      throw err;
-    }
-    if (profileChunks.length === 0) {
-      const err = new Error('O perfil não contém texto analisável.');
-      err.statusCode = 400;
-      throw err;
-    }
+    if (!scorecard) throw new Error('Scorecard não encontrado.');
+    if (profileChunks.length === 0) throw new Error('O perfil não contém texto analisável.');
     
     const profileEmbeddings = await createEmbeddings(profileChunks);
+    
+    // 2. Criação e População da Tabela Temporária no LanceDB
+    const profileDataForLance = profileEmbeddings.map((vector, i) => ({
+      vector,
+      text: profileChunks[i] // Armazena o texto junto com o vetor
+    }));
+    profileTable = await createProfileVectorTable(tempTableName, profileDataForLance);
 
-    // 2. Mapeamento de Evidências (Busca Vetorial Invertida)
-    const evidenceMap = new Map(); // Mapa: criterionId -> [evidências em texto]
-
-    // Para cada chunk do perfil, buscamos os critérios mais relevantes
-    const searchPromises = profileEmbeddings.map(async (profileVector, index) => {
-        const profileChunkText = profileChunks[index];
-        // Busca os 2 critérios mais próximos para cada chunk do perfil
-        const searchResults = await searchSimilarVectors(profileVector, 2);
-        
-        searchResults.forEach(result => {
-            const criterionId = result.uuid;
-            // Opcional: Adicionar um filtro de distância para evitar matches ruins
-            // if (result._distance < 0.8) { 
-                if (!evidenceMap.has(criterionId)) {
-                    evidenceMap.set(criterionId, []);
-                }
-                evidenceMap.get(criterionId).push(profileChunkText);
-            // }
-        });
-    });
-
-    await Promise.all(searchPromises);
-
-    // 3. Análise Focada com IA (em Paralelo)
+    // 3. Análise Focada (Busca Vetorial + IA)
     const categoryResults = [];
     let totalWeightedScore = 0;
     let totalWeight = 0;
 
     for (const category of scorecard.categories) {
       const analysisPromises = (category.criteria || []).map(async (criterion) => {
-        // Pega as evidências coletadas para este critério
-        const relevantChunks = evidenceMap.get(criterion.id) || [];
-        const uniqueRelevantChunks = [...new Set(relevantChunks)]; // Remove duplicatas
+        if (!criterion.embedding) {
+          logError(`Critério "${criterion.name}" não possui embedding. Pulando.`);
+          return null;
+        }
+        
+        // Etapa A: Busca vetorial na tabela temporária do perfil
+        const searchResults = await profileTable.search(criterion.embedding)
+            .limit(3) // Busca os 3 chunks mais relevantes
+            .select(['text']) // Pede para o LanceDB retornar o campo de texto
+            .execute();
 
-        // Envia para a IA apenas o critério e suas evidências diretas
+        // Etapa B: Extrai o texto diretamente do resultado
+        const relevantChunks = searchResults.map(result => result.text);
+        const uniqueRelevantChunks = [...new Set(relevantChunks)];
+
+        // Etapa C: Análise de IA focada
         const evaluation = await analyzeCriterionWithAI(criterion, uniqueRelevantChunks);
         return { evaluation, weight: criterion.weight };
       });
@@ -112,11 +104,17 @@ export const analyze = async (scorecardId, profileData) => {
         categories: categoryResults
     };
     const duration = Date.now() - startTime;
-    log(`Análise HÍBRIDA-OTIMIZADA concluída em ${duration}ms. Score final: ${overallScore}%`);
+    log(`Análise com tabela temporária concluída em ${duration}ms. Score: ${overallScore}%`);
     
     return result;
+
   } catch (err) {
-    logError('Erro durante a análise de match HÍBRIDA-OTIMIZADA:', err.message);
+    logError('Erro durante a análise de match com tabela temporária:', err.message);
     throw err;
+  } finally {
+    // 5. Limpeza (SEMPRE executa, mesmo se houver erro)
+    if (profileTable) {
+        await dropProfileVectorTable(tempTableName);
+    }
   }
 };
