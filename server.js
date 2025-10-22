@@ -11,13 +11,13 @@ import { memoryStorageAdapter } from './src/Platform/Storage/memoryStorage.adapt
 import { initializeSessionService } from './src/Core/session.service.js';
 import { initializeAuthStorage } from './src/Inhire/Auth/authStorage.service.js';
 import { performLogin } from './src/Core/Auth-Flow/authOrchestrator.js';
-import apiRoutes from './src/routes/apiRoutes.js';
-import db from './src/models/index.js';
+import { sequelize } from './src/models/index.js'; // <- ajustado para export nomeado
 import { syncEntityCache } from './src/utils/sync.service.js';
 import { fetchAllJobsWithDetails } from './src/Core/Job-Flow/jobOrchestrator.js';
 import { fetchAllTalentsForSync, fetchCandidatesForJob } from './src/Core/management-flow/managementOrchestrator.js'; 
 import { getFromCache } from './src/utils/cache.service.js';
 import { createUser, findUserByEmail } from './src/Core/User-Flow/userService.js';
+import apiRoutes from './src/routes/apiRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,19 +29,15 @@ const TALENTS_CACHE_KEY = 'all_talents';
 
 /**
  * Sincroniza os models do Sequelize com o banco de dados SQLite.
- * Cria o arquivo do banco e as tabelas se não existirem.
  */
 const initializeDatabase = async () => {
     log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize) ---');
     try {
-        // A extensão VSS já é carregada no `models/index.js`
-        // O `sync` criará o arquivo do banco se ele não existir
         log('Sincronizando models com o banco de dados (alter: true)...');
-        await db.sequelize.sync({ alter: true });
-        
-        // Cria a tabela virtual VSS para os critérios, se ainda não existir.
-        // Isso é necessário para a busca vetorial.
-        await db.sequelize.query(`
+        await sequelize.sync({ alter: true });
+
+        // Cria tabela virtual VSS se não existir
+        await sequelize.query(`
             CREATE VIRTUAL TABLE IF NOT EXISTS vss_criteria USING vss0(
                 embedding(1536)
             );
@@ -57,25 +53,25 @@ const syncJobs = () => syncEntityCache(JOBS_CACHE_KEY, fetchAllJobsWithDetails);
 const syncTalents = () => syncEntityCache(TALENTS_CACHE_KEY, fetchAllTalentsForSync);
 
 const prefetchAllCandidates = async () => {
-  log('--- PREFETCH WORKER: Iniciando pré-carregamento de candidatos InHire ---');
-  const allJobs = getFromCache(JOBS_CACHE_KEY);
-  if (!allJobs || allJobs.length === 0) {
-    logError('PREFETCH WORKER: Não há vagas InHire no cache para buscar candidatos. Pulando.');
-    return;
-  }
-  log(`PREFETCH WORKER: Encontradas ${allJobs.length} vagas. Buscando candidatos para cada uma...`);
-  const concurrencyLimit = 5;
-  const batches = _.chunk(allJobs, concurrencyLimit);
-  for (const batch of batches) {
-    await Promise.all(batch.map(job => fetchCandidatesForJob(job.id)));
-    log(`PREFETCH WORKER: Lote de ${batch.length} vagas processado.`);
-  }
-  log('--- PREFETCH WORKER: Pré-carregamento de candidatos InHire concluído. ---');
+    log('--- PREFETCH WORKER: Iniciando pré-carregamento de candidatos InHire ---');
+    const allJobs = getFromCache(JOBS_CACHE_KEY);
+    if (!allJobs || allJobs.length === 0) {
+        logError('PREFETCH WORKER: Não há vagas InHire no cache para buscar candidatos. Pulando.');
+        return;
+    }
+    log(`PREFETCH WORKER: Encontradas ${allJobs.length} vagas. Buscando candidatos para cada uma...`);
+    const concurrencyLimit = 5;
+    const batches = _.chunk(allJobs, concurrencyLimit);
+    for (const batch of batches) {
+        await Promise.all(batch.map(job => fetchCandidatesForJob(job.id)));
+        log(`PREFETCH WORKER: Lote de ${batch.length} vagas processado.`);
+    }
+    log('--- PREFETCH WORKER: Pré-carregamento de candidatos InHire concluído. ---');
 };
 
 const seedAdminUser = async () => {
     const adminEmail = 'admin@admin.com';
-    const existingAdmin = findUserByEmail(adminEmail);
+    const existingAdmin = await findUserByEmail(adminEmail);
     if (!existingAdmin) {
         log('Nenhum usuário admin encontrado. Criando um novo...');
         try {
@@ -96,49 +92,48 @@ const seedAdminUser = async () => {
 };
 
 const startServer = async () => {
-  configureLogger({ toFile: true });
-  app.use(cors());
-  app.use(express.json());
-  app.use(express.static(path.join(__dirname, 'public')));
-  log('--- INICIALIZAÇÃO DO SERVIDOR ---');
+    configureLogger({ toFile: true });
+    app.use(cors());
+    app.use(express.json());
+    app.use(express.static(path.join(__dirname, 'public')));
+    log('--- INICIALIZAÇÃO DO SERVIDOR ---');
 
-  await initializeDatabase();
+    await initializeDatabase();
 
-  initializeSessionService(memoryStorageAdapter);
-  initializeAuthStorage(memoryStorageAdapter);
-  log('✅ Serviços de sessão e autenticação InHire inicializados.');
+    initializeSessionService(memoryStorageAdapter);
+    initializeAuthStorage(memoryStorageAdapter);
+    log('✅ Serviços de sessão e autenticação InHire inicializados.');
 
-  await seedAdminUser();
-  log('✅ Verificação do usuário admin local concluída.');
+    await seedAdminUser();
+    log('✅ Verificação do usuário admin local concluída.');
 
-  const loginResult = await performLogin();
-  if (!loginResult.success) {
-    logError('Falha crítica no login da InHire. O servidor não pode continuar e será encerrado.');
-    process.exit(1);
-  }
-  log('✅ Login na API da InHire bem-sucedido.');
+    const loginResult = await performLogin();
+    if (!loginResult.success) {
+        logError('Falha crítica no login da InHire. O servidor não pode continuar e será encerrado.');
+        process.exit(1);
+    }
+    log('✅ Login na API da InHire bem-sucedido.');
 
-  log('Realizando a primeira sincronização de VAGAS da InHire...');
-  await syncJobs();
-  log('✅ Sincronização de Vagas concluída.');
+    log('Realizando a primeira sincronização de VAGAS da InHire...');
+    await syncJobs();
+    log('✅ Sincronização de Vagas concluída.');
 
-  log('Realizando a primeira sincronização de TALENTOS da InHire...');
-  await syncTalents();
-  log('✅ Sincronização de Talentos concluída.');
-  
-  app.use('/api', apiRoutes);
-  log('✅ Rotas da API configuradas.');
+    log('Realizando a primeira sincronização de TALENTOS da InHire...');
+    await syncTalents();
+    log('✅ Sincronização de Talentos concluída.');
 
-  app.listen(PORT, () => {
-    log(`🚀 Servidor rodando e ouvindo na porta ${PORT}`);
-    
-    log('Iniciando pré-carregamento de candidatos da InHire em segundo plano...');
-    prefetchAllCandidates().catch(err => logError("Erro durante o pré-carregamento em segundo plano:", err));
-  });
+    app.use('/api', apiRoutes);
+    log('✅ Rotas da API configuradas.');
 
-  setInterval(syncJobs, 60000);
-  setInterval(syncTalents, 60000);
-  log('🔄 Sincronização periódica de Vagas e Talentos agendada a cada 60s.');
+    app.listen(PORT, () => {
+        log(`🚀 Servidor rodando e ouvindo na porta ${PORT}`);
+        log('Iniciando pré-carregamento de candidatos da InHire em segundo plano...');
+        prefetchAllCandidates().catch(err => logError("Erro durante o pré-carregamento em segundo plano:", err));
+    });
+
+    setInterval(syncJobs, 60000);
+    setInterval(syncTalents, 60000);
+    log('🔄 Sincronização periódica de Vagas e Talentos agendada a cada 60s.');
 };
 
 startServer();
