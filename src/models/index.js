@@ -1,49 +1,31 @@
 import { Sequelize } from 'sequelize';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import Database from 'better-sqlite3';
-import { createRequire } from 'module'; // ✅ Necessário para importar módulos CommonJS
+import fs from 'fs';
 
-import dbConfig from '../config/database.js';
-import scorecardModel from './scorecard.model.js';
-import categoryModel from './category.model.js';
-import criterionModel from './criterion.model.js';
+// Caminho do banco SQLite (para desenvolvimento/local)
+const DB_PATH = path.resolve('database/database.sqlite');
 
-const require = createRequire(import.meta.url);
-const sqliteVss = require('sqlite-vss'); // ✅ Importa corretamente o módulo CommonJS
+// Garante que a pasta exista
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
-const env = process.env.NODE_ENV || 'development';
-const config = dbConfig[env];
+let sequelize;
 
-const db = {};
-
-// Configuração do Sequelize com better-sqlite3
-const sequelize = new Sequelize({ ...config, dialectModule: Database });
-
-// ✅ Aguarda o carregamento da extensão VSS na conexão SQLite
-sequelize.connectionManager.getConnection()
-  .then(async (conn) => {
-    await sqliteVss.load(conn);
-    console.log('✅ Extensão sqlite-vss carregada na conexão.');
-  })
-  .catch(err => {
-    console.error('❌ Erro ao carregar extensão sqlite-vss:', err);
+try {
+  sequelize = new Sequelize({
+    dialect: 'sqlite',
+    storage: DB_PATH,
+    logging: false,
   });
 
-const modelDefinitions = [scorecardModel, categoryModel, criterionModel];
+  console.log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize) ---');
+  console.log('Sincronizando models com o banco de dados (alter: true)...');
 
-for (const modelDef of modelDefinitions) {
-  const model = modelDef(sequelize);
-  db[model.name] = model;
+  await sequelize.sync({ alter: true });
+
+  console.log('✅ Banco de dados sincronizado com sucesso.');
+} catch (error) {
+  console.error('❌ ERRO: Falha crítica ao sincronizar os models/VSS com o banco de dados.', error);
 }
 
-Object.keys(db).forEach(modelName => {
-  if (db[modelName].associate) {
-    db[modelName].associate(db);
-  }
-});
-
-db.sequelize = sequelize;
-db.Sequelize = Sequelize;
-
-export default db;
+// Exporta o Sequelize para os models
+export { sequelize };
