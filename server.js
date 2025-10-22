@@ -1,13 +1,8 @@
 import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import _ from 'lodash';
-import { createRequire } from 'node:module'; // ✅ Para importar CommonJS no ESM
-
-// Importando serviços e inicializadores
 import { configureLogger, log, error as logError } from './src/utils/logger.service.js';
 import { memoryStorageAdapter } from './src/Platform/Storage/memoryStorage.adapter.js';
 import { initializeSessionService } from './src/Core/session.service.js';
@@ -20,44 +15,36 @@ import { fetchAllTalentsForSync, fetchCandidatesForJob } from './src/Core/manage
 import { getFromCache } from './src/utils/cache.service.js';
 import { createUser, findUserByEmail } from './src/Core/User-Flow/userService.js';
 import apiRoutes from './src/routes/apiRoutes.js';
+import { createRequire } from 'node:module';
 
-// ✅ Import do sqlite-vss CommonJS no ESM
-const require = createRequire(import.meta.url);
+const require = createRequire(import.meta.url); // ✅ Necessário para sqlite-vss
 const sqliteVss = require('sqlite-vss');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
-const PORT = process.env.PORT || 4000;
 const JOBS_CACHE_KEY = 'all_jobs_with_details';
 const TALENTS_CACHE_KEY = 'all_talents';
 
 /**
- * Centraliza a inicialização do banco de dados.
+ * Inicializa o banco de dados e carrega VSS.
  */
-const initializeDatabase = async () => {
+export const initializeDatabase = async () => {
     log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize) ---');
     
     try {
-        // --- PASSO 1: Sincroniza tabelas
+        // --- Sincroniza modelos (ATENÇÃO: force:true apaga tabelas existentes) ---
         log('Sincronizando models com o banco de dados (force: true)...');
-        await sequelize.sync({ force: true }); // ⚠️ Apaga todos os dados existentes
+        await sequelize.sync({ force: true });
         log('✅ Models sincronizados com sucesso (tabelas recriadas).');
 
-        // --- PASSO 2: Carregar VSS via sqlite-vss
+        // --- Carregamento da extensão VSS via sqlite-vss ---
         try {
             log('🔍 Carregando extensão VSS via sqlite-vss...');
-            
-            // sqliteVss fornece caminho interno para load_extension
-            const vssPath = sqliteVss.path;
-            log(`📦 Caminho da extensão VSS: ${vssPath}`);
-
-            // Carrega extensão no SQLite
-            await sequelize.query(`SELECT load_extension('${vssPath}')`);
+            await sqliteVss.load(sequelize);
             log('✅ Extensão VSS carregada com sucesso.');
 
-            // Cria tabela virtual VSS
+            // Criação da tabela virtual VSS
             await sequelize.query(`
                 CREATE VIRTUAL TABLE IF NOT EXISTS vss_criteria USING vss0(
                     embedding(1536)
