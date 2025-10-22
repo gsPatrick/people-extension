@@ -1,8 +1,10 @@
-// A importação agora aponta para o arquivo index.js específico
-import { Scorecard, Category, Criterion, sequelize } from '../models/index.js';
+import db from '../models/index.js'; // CORREÇÃO 1: Importar o objeto 'db' padrão
 import { createEmbeddings } from './embedding.service.js';
 import { getFromCache, setToCache, clearCache } from '../utils/cache.service.js';
 import { log, error } from '../utils/logger.service.js';
+
+// CORREÇÃO 2: Extrair os modelos e o sequelize do objeto 'db'
+const { Scorecard, Category, Criterion, sequelize } = db;
 
 const ALL_SCORECARDS_CACHE_KEY = 'scorecards_all_list';
 const SCORECARD_ID_CACHE_PREFIX = 'scorecard_id_';

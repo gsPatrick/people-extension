@@ -12,8 +12,8 @@ import { memoryStorageAdapter } from './src/Platform/Storage/memoryStorage.adapt
 import { initializeSessionService } from './src/Core/session.service.js';
 import { initializeAuthStorage } from './src/Inhire/Auth/authStorage.service.js';
 import { performLogin } from './src/Core/Auth-Flow/authOrchestrator.js';
-// A importação agora aponta para o arquivo index.js específico
-import { sequelize } from './src/models/index.js';
+import db from './src/models/index.js'; // CORREÇÃO 1: Importar o objeto 'db' padrão
+const { sequelize } = db; // CORREÇÃO 2: Extrair o sequelize do objeto 'db'
 import { syncEntityCache } from './src/utils/sync.service.js';
 import { fetchAllJobsWithDetails } from './src/Core/Job-Flow/jobOrchestrator.js';
 import { fetchAllTalentsForSync, fetchCandidatesForJob } from './src/Core/management-flow/managementOrchestrator.js'; 
@@ -21,6 +21,7 @@ import { getFromCache } from './src/utils/cache.service.js';
 import { createUser, findUserByEmail } from './src/Core/User-Flow/userService.js';
 import apiRoutes from './src/routes/apiRoutes.js';
 
+// ... (o restante do arquivo permanece exatamente igual)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -29,9 +30,6 @@ const PORT = process.env.PORT || 4000;
 const JOBS_CACHE_KEY = 'all_jobs_with_details';
 const TALENTS_CACHE_KEY = 'all_talents';
 
-/**
- * Centraliza a inicialização do banco de dados.
- */
 const initializeDatabase = async () => {
     log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize) ---');
     

@@ -2,10 +2,11 @@ import { findById as findScorecardById } from './scorecard.service.js';
 import { createEmbeddings } from './embedding.service.js';
 import { analyzeCriterionWithAI } from './ai.service.js';
 import { log, error } from '../utils/logger.service.js';
-// A importação agora aponta para o arquivo index.js específico
-import { sequelize } from '../models/index.js';
+import db from '../models/index.js'; // CORREÇÃO 1: Importar o objeto 'db' padrão
+const { sequelize } = db; // CORREÇÃO 2: Extrair o sequelize do objeto 'db'
 
 const chunkProfile = (profileData) => {
+  // ... (código interno da função permanece igual)
   const chunks = [];
   if (profileData.headline) chunks.push(`Título: ${profileData.headline}`);
   if (profileData.about) chunks.push(`Sobre: ${profileData.about}`);
@@ -19,6 +20,7 @@ const chunkProfile = (profileData) => {
 };
 
 export const analyze = async (scorecardId, profileData) => {
+  // ... (código interno da função permanece igual)
   const startTime = Date.now();
   log(`Iniciando análise HÍBRIDA (SQLite-VSS) para "${profileData.name}"`);
 
@@ -31,10 +33,8 @@ export const analyze = async (scorecardId, profileData) => {
     
     const profileEmbeddings = await createEmbeddings(profileChunks);
 
-    // Cria uma tabela temporária em memória para os vetores do perfil
     await sequelize.query('CREATE VIRTUAL TABLE temp_profile_embeddings USING vss0(embedding(1536));');
     
-    // Insere os vetores do perfil na tabela temporária
     const insertStmt = await sequelize.prepare('INSERT INTO temp_profile_embeddings (rowid, embedding) VALUES (?, ?)');
     for (let i = 0; i < profileEmbeddings.length; i++) {
         await insertStmt.run(i + 1, vectorToBuffer(profileEmbeddings[i]));
@@ -49,7 +49,6 @@ export const analyze = async (scorecardId, profileData) => {
       const analysisPromises = category.criteria.map(async (criterion) => {
         if (!criterion.embedding) return null;
 
-        // **BUSCA VETORIAL NATIVA COM SQLITE-VSS**
         const query = `
           SELECT c.text, v.distance
           FROM temp_profile_embeddings AS v
@@ -89,7 +88,6 @@ export const analyze = async (scorecardId, profileData) => {
       categoryResults.push({ name: category.name, score: categoryScore, criteria: criteriaEvaluations });
     }
 
-    // Limpa a tabela temporária
     await sequelize.query('DROP TABLE temp_profile_embeddings;');
 
     const overallScore = totalWeight > 0 ? Math.round((totalWeightedScore / totalWeight) * 100) : 0;
@@ -102,14 +100,12 @@ export const analyze = async (scorecardId, profileData) => {
     return result;
 
   } catch (err) {
-    // Garante que a tabela temporária seja limpa em caso de erro
     await sequelize.query('DROP TABLE IF EXISTS temp_profile_embeddings;').catch(() => {});
     error('Erro durante a análise de match HÍBRIDA (SQLite-VSS):', err.message);
     throw err;
   }
 };
 
-// Funções helper para conversão de vetor para buffer
 const vectorToBuffer = (vector) => {
   if (!vector) return null;
   const float32Array = new Float32Array(vector);
