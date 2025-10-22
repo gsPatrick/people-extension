@@ -7,39 +7,8 @@ const SCORECARDS_CACHE_PREFIX = 'scorecards_';
 const ALL_SCORECARDS_CACHE_KEY = `${SCORECARDS_CACHE_PREFIX}all`;
 
 /**
- * Garante que a estrutura dos dados retornados seja consistente.
- * Especificamente, assegura que 'category.criteria' seja sempre um array.
- * @param {object|object[]} scorecards - Um único scorecard ou uma lista de scorecards.
- * @returns {object|object[]} Os scorecards sanitizados.
- */
-const sanitizeScorecards = (scorecards) => {
-  if (!scorecards) return scorecards;
-
-  const scorecardList = Array.isArray(scorecards) ? scorecards : [scorecards];
-
-  for (const scorecard of scorecardList) {
-    // Acessa os dados brutos para modificá-los antes de serem retornados
-    const plainScorecard = scorecard.get({ plain: true });
-    if (plainScorecard.categories) {
-      for (const category of plainScorecard.categories) {
-        // A LÓGICA CRUCIAL: Se 'criteria' for undefined/null, define como um array vazio.
-        if (!category.criteria) {
-          category.criteria = [];
-        }
-      }
-    }
-    // Retorna a versão modificada (ou a original se for uma lista)
-    if (!Array.isArray(scorecards)) return plainScorecard;
-  }
-  
-  // Para listas, retorna a lista completa após sanitizar cada item no objeto original
-  return scorecards;
-};
-
-
-/**
  * Busca todos os scorecards com suas categorias e critérios aninhados.
- * @returns {Promise<Array>} Uma lista de scorecards.
+ * @returns {Promise<Array>} Uma lista de scorecards em formato de objeto puro (plain).
  */
 export const findAll = async () => {
   const cachedScorecards = getFromCache(ALL_SCORECARDS_CACHE_KEY);
@@ -49,17 +18,12 @@ export const findAll = async () => {
   }
 
   try {
-    let scorecards = await db.Scorecard.findAll({
+    const scorecards = await db.Scorecard.findAll({
       include: [
         {
           model: db.Category,
           as: 'categories',
-          include: [
-            {
-              model: db.Criterion,
-              as: 'criteria',
-            },
-          ],
+          include: [{ model: db.Criterion, as: 'criteria' }],
         },
       ],
       order: [
@@ -69,11 +33,22 @@ export const findAll = async () => {
       ],
     });
 
-    // Sanitiza os dados antes de cachear e retornar
-    scorecards = sanitizeScorecards(scorecards);
+    // Passo 1: Converter todas as instâncias do Sequelize em objetos JavaScript puros.
+    const plainScorecards = scorecards.map(sc => sc.get({ plain: true }));
 
-    setToCache(ALL_SCORECARDS_CACHE_KEY, scorecards);
-    return scorecards;
+    // Passo 2: Sanitizar os dados, garantindo que 'criteria' seja sempre um array.
+    for (const scorecard of plainScorecards) {
+      if (scorecard.categories) {
+        for (const category of scorecard.categories) {
+          if (!category.criteria) {
+            category.criteria = [];
+          }
+        }
+      }
+    }
+
+    setToCache(ALL_SCORECARDS_CACHE_KEY, plainScorecards);
+    return plainScorecards;
   } catch (err) {
     logError('Erro ao buscar todos os scorecards:', err.message);
     throw new Error('Não foi possível recuperar os scorecards do banco de dados.');
@@ -83,7 +58,7 @@ export const findAll = async () => {
 /**
  * Busca um scorecard específico pelo seu ID com todas as associações.
  * @param {string} id - O UUID do scorecard.
- * @returns {Promise<Object|null>} O scorecard encontrado ou null.
+ * @returns {Promise<Object|null>} O scorecard encontrado em formato de objeto puro (plain) ou null.
  */
 export const findById = async (id) => {
   const cacheKey = `${SCORECARDS_CACHE_PREFIX}${id}`;
@@ -94,31 +69,35 @@ export const findById = async (id) => {
   }
   
   try {
-    let scorecard = await db.Scorecard.findByPk(id, {
-        include: [
-            {
-              model: db.Category,
-              as: 'categories',
-              separate: true,
-              include: [
-                {
-                  model: db.Criterion,
-                  as: 'criteria',
-                },
-              ],
-            },
-        ],
-        order: [
-            [{ model: db.Category, as: 'categories' }, 'order', 'ASC'],
-            [{ model: db.Category, as: 'categories' }, { model: db.Criterion, as: 'criteria' }, 'order', 'ASC'],
-        ],
+    const scorecard = await db.Scorecard.findByPk(id, {
+      include: [
+        {
+          model: db.Category,
+          as: 'categories',
+          separate: true,
+          include: [{ model: db.Criterion, as: 'criteria' }],
+        },
+      ],
+      order: [
+        [{ model: db.Category, as: 'categories' }, 'order', 'ASC'],
+        [{ model: db.Category, as: 'categories' }, { model: db.Criterion, as: 'criteria' }, 'order', 'ASC'],
+      ],
     });
 
     if (scorecard) {
-        // Sanitiza os dados antes de cachear e retornar
-        const sanitizedScorecard = sanitizeScorecards(scorecard);
-        setToCache(cacheKey, sanitizedScorecard);
-        return sanitizedScorecard;
+      // Passo 1: Converter a instância do Sequelize em um objeto JavaScript puro.
+      const plainScorecard = scorecard.get({ plain: true });
+
+      // Passo 2: Sanitizar os dados.
+      if (plainScorecard.categories) {
+        for (const category of plainScorecard.categories) {
+          if (!category.criteria) {
+            category.criteria = [];
+          }
+        }
+      }
+      setToCache(cacheKey, plainScorecard);
+      return plainScorecard;
     }
     return null;
   } catch (err) {
@@ -141,11 +120,7 @@ export const create = async (scorecardData) => {
     if (categories && categories.length > 0) {
       for (const categoryData of categories) {
         const { criteria, ...restOfCategory } = categoryData;
-        const newCategory = await db.Category.create({
-          ...restOfCategory,
-          scorecardId: newScorecard.id,
-        }, { transaction: t });
-
+        const newCategory = await db.Category.create({ ...restOfCategory, scorecardId: newScorecard.id }, { transaction: t });
         if (criteria && criteria.length > 0) {
           for (const criterionData of criteria) {
             if (criterionData.description && criterionData.description.trim() !== '') {
@@ -160,8 +135,6 @@ export const create = async (scorecardData) => {
     await t.commit();
     clearCacheByPrefix(SCORECARDS_CACHE_PREFIX);
     log(`Cache de scorecards invalidado após a criação de '${newScorecard.name}'.`);
-    
-    // O findById já sanitiza o resultado
     return findById(newScorecard.id);
   } catch (err) {
     await t.rollback();
@@ -190,7 +163,6 @@ export const update = async (id, scorecardData) => {
             for (const categoryData of categories) {
                 const { criteria, ...restOfCategory } = categoryData;
                 const newCategory = await db.Category.create({ ...restOfCategory, scorecardId: id }, { transaction: t });
-
                 if (criteria && criteria.length > 0) {
                     for (const criterionData of criteria) {
                         if (criterionData.description && criterionData.description.trim() !== '') {
@@ -203,10 +175,8 @@ export const update = async (id, scorecardData) => {
         }
 
         await t.commit();
-        clearCacheByPrefix(SCORECARDEntityS_CACHE_PREFIX);
+        clearCacheByPrefix(SCORECARDS_CACHE_PREFIX);
         log(`Cache de scorecards invalidado após a atualização de '${scorecard.name}'.`);
-        
-        // O findById já sanitiza o resultado
         return findById(id);
     } catch (err) {
         await t.rollback();
