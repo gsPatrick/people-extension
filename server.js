@@ -11,7 +11,7 @@ import { memoryStorageAdapter } from './src/Platform/Storage/memoryStorage.adapt
 import { initializeSessionService } from './src/Core/session.service.js';
 import { initializeAuthStorage } from './src/Inhire/Auth/authStorage.service.js';
 import { performLogin } from './src/Core/Auth-Flow/authOrchestrator.js';
-import { sequelize } from './src/models/index.js'; // <- ajustado para export nomeado
+import { sequelize } from './src/models/index.js'; // <- export nomeado
 import { syncEntityCache } from './src/utils/sync.service.js';
 import { fetchAllJobsWithDetails } from './src/Core/Job-Flow/jobOrchestrator.js';
 import { fetchAllTalentsForSync, fetchCandidatesForJob } from './src/Core/management-flow/managementOrchestrator.js'; 

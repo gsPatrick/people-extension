@@ -1,31 +1,59 @@
 import { Sequelize } from 'sequelize';
 import path from 'path';
 import fs from 'fs';
+import sqlite3 from 'sqlite3';
 
-// Caminho do banco SQLite (para desenvolvimento/local)
+// Caminho do banco SQLite
 const DB_PATH = path.resolve('database/database.sqlite');
-
-// Garante que a pasta exista
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
-let sequelize;
+// Inicializa o Sequelize
+export const sequelize = new Sequelize({
+  dialect: 'sqlite',
+  storage: DB_PATH,
+  logging: false,
+  dialectModule: sqlite3, // garante que use o sqlite3 nativo
+});
 
-try {
-  sequelize = new Sequelize({
-    dialect: 'sqlite',
-    storage: DB_PATH,
-    logging: false,
+// Função para carregar a extensão VSS
+const loadVssExtension = async () => {
+  return new Promise((resolve, reject) => {
+    const db = new sqlite3.Database(DB_PATH, (err) => {
+      if (err) return reject(err);
+
+      // Caminho para a biblioteca vss0.so/dll/dylib
+      const vssPath = path.resolve('node_modules/sqlite-vss/build/Release/vss0.node');
+
+      db.loadExtension(vssPath, (err) => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
   });
+};
 
+const initializeDatabase = async () => {
   console.log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize) ---');
-  console.log('Sincronizando models com o banco de dados (alter: true)...');
+  
+  try {
+    await loadVssExtension();
+    console.log('✅ Extensão VSS carregada com sucesso.');
 
-  await sequelize.sync({ alter: true });
+    await sequelize.sync({ alter: true });
+    console.log('✅ Models sincronizados com sucesso.');
 
-  console.log('✅ Banco de dados sincronizado com sucesso.');
-} catch (error) {
-  console.error('❌ ERRO: Falha crítica ao sincronizar os models/VSS com o banco de dados.', error);
-}
+    // Cria a tabela virtual VSS (agora que a extensão está carregada)
+    await sequelize.query(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS vss_criteria USING vss0(
+        embedding(1536)
+      );
+    `);
+    console.log('✅ Tabela virtual VSS criada com sucesso.');
+  } catch (error) {
+    console.error('❌ ERRO ao inicializar o banco/VSS:', error);
+    process.exit(1);
+  }
+};
 
-// Exporta o Sequelize para os models
-export { sequelize };
+// Inicializa
+await initializeDatabase();
