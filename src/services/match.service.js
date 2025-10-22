@@ -1,8 +1,9 @@
-// ARQUIVO COMPLETO E ATUALIZADO: src/services/match.service.js
+// ARQUIVO COMPLETO E DEFINITIVO: src/services/match.service.js
 
 import { findById as findScorecardById } from './scorecard.service.js';
-import { createEmbeddings } from './embedding.service.js';
-import { analyzeCriterionWithAI } from './ai.service.js';
+// <-- MUDANÇA CRÍTICA: As importações de serviços com potencial de ciclo foram removidas do topo.
+// import { createEmbeddings } from './embedding.service.js';
+// import { analyzeCriterionWithAI } from './ai.service.js';
 import { searchSimilarVectors } from './vector.service.js';
 import { log, error as logError } from '../utils/logger.service.js';
 
@@ -26,6 +27,10 @@ const chunkProfile = (profileData) => {
  * Realiza a análise de match de um perfil contra um scorecard usando LanceDB e IA.
  */
 export const analyze = async (scorecardId, profileData) => {
+  // <-- MUDANÇA CRÍTICA: Os serviços são importados aqui, dentro da função.
+  const { createEmbeddings, createEmbedding } = await import('./embedding.service.js');
+  const { analyzeCriterionWithAI } = await import('./ai.service.js');
+
   const startTime = Date.now();
   log(`Iniciando análise com LanceDB para "${profileData.name || 'perfil sem nome'}"`);
 
@@ -44,7 +49,6 @@ export const analyze = async (scorecardId, profileData) => {
       throw err;
     }
     
-    // Gera os embeddings para cada pedaço de texto do perfil
     const profileEmbeddings = await createEmbeddings(profileChunks);
 
     const categoryResults = [];
@@ -52,38 +56,43 @@ export const analyze = async (scorecardId, profileData) => {
     let totalWeight = 0;
 
     for (const category of scorecard.categories) {
-      const analysisPromises = category.criteria.map(async (criterion) => {
-        // Pula se o critério não tiver texto para gerar embedding
+      const analysisPromises = (category.criteria || []).map(async (criterion) => {
         const textToSearch = criterion.description || criterion.name;
         if (!textToSearch) return null;
 
-        // Gera o embedding para o critério "on-the-fly" para a busca
         const criterionEmbedding = await createEmbedding(textToSearch);
         if (!criterionEmbedding) return null;
         
-        // Busca no LanceDB pelos vetores de perfil mais similares ao vetor do critério
         const searchResults = await searchSimilarVectors(criterionEmbedding, 5);
+        
+        // Esta lógica de encontrar os chunks mais relevantes precisa ser mais robusta.
+        // Vamos associar o chunk ao seu embedding para uma busca precisa.
+        const chunkEmbeddingsMap = new Map(profileEmbeddings.map((emb, i) => [emb, profileChunks[i]]));
+        const relevantChunks = [];
+        
+        for (const result of searchResults) {
+            // A busca no LanceDB retorna um vetor. Precisamos encontrar o chunk original.
+            // A maneira mais direta é encontrar o embedding mais próximo na nossa lista original.
+            let closestEmbedding = null;
+            let minDistance = Infinity;
 
-        // Mapeia os resultados da busca para extrair os chunks de texto originais
-        const relevantChunks = searchResults.map(result => {
-             // O LanceDB pode retornar vetores que não correspondem exatamente a um dos nossos,
-             // então precisamos encontrar o chunk original pelo embedding mais próximo.
-             // Esta é uma simplificação; uma implementação mais robusta poderia usar IDs.
-             let bestMatchIndex = -1;
-             let minDistance = Infinity;
-             for (let i = 0; i < profileEmbeddings.length; i++) {
-                 const dist = result._distance; // LanceDB fornece a distância
-                 if (dist < minDistance) {
-                     minDistance = dist;
-                     bestMatchIndex = i; // Supondo que a ordem dos vetores foi mantida
-                 }
-             }
-             return profileChunks[bestMatchIndex];
-        }).filter(Boolean);
+            for (const profileEmb of profileEmbeddings) {
+                // Simple Euclidean distance for comparison
+                const dist = Math.sqrt(result.vector.reduce((sum, val, i) => sum + Math.pow(val - profileEmb[i], 2), 0));
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    closestEmbedding = profileEmb;
+                }
+            }
+            
+            if (closestEmbedding && chunkEmbeddingsMap.has(closestEmbedding)) {
+                relevantChunks.push(chunkEmbeddingsMap.get(closestEmbedding));
+            }
+        }
+        
+        const uniqueRelevantChunks = [...new Set(relevantChunks)];
 
-
-        // Envia o critério e os chunks relevantes para a IA fazer a análise final
-        const evaluation = await analyzeCriterionWithAI(criterion, relevantChunks);
+        const evaluation = await analyzeCriterionWithAI(criterion, uniqueRelevantChunks);
         return { evaluation, weight: criterion.weight };
       });
 
