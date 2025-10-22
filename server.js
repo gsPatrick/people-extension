@@ -5,7 +5,6 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import _ from 'lodash';
-import sqlite3 from 'sqlite3';
 
 // Importando serviços e inicializadores
 import { configureLogger, log, error as logError } from './src/utils/logger.service.js';
@@ -30,42 +29,31 @@ const JOBS_CACHE_KEY = 'all_jobs_with_details';
 const TALENTS_CACHE_KEY = 'all_talents';
 
 /**
- * Carrega a extensão VSS usando a conexão nativa do sqlite3.
- * Esta função é chamada antes da sincronização do Sequelize.
- */
-const loadVssExtension = () => {
-  return new Promise((resolve, reject) => {
-    const dbPath = sequelize.options.storage;
-    const db = new sqlite3.Database(dbPath, (err) => {
-      if (err) return reject(err);
-
-      // Constrói o caminho para o binário da extensão de forma robusta a partir da raiz do projeto
-      const vssPath = path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node');
-      
-      db.loadExtension(vssPath, (loadErr) => {
-        db.close(); // Fecha a conexão nativa após o carregamento
-        if (loadErr) return reject(loadErr);
-        resolve();
-      });
-    });
-  });
-};
-
-/**
- * Sincroniza os models do Sequelize com o banco de dados SQLite e cria a tabela virtual.
- * Esta é agora a única função responsável por esta tarefa.
+ * Centraliza a inicialização do banco de dados, carregando a extensão VSS
+ * na mesma conexão que o Sequelize utiliza.
  */
 const initializeDatabase = async () => {
     log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize) ---');
     try {
-        await loadVssExtension();
-        log('✅ Extensão VSS carregada com sucesso.');
+        // Passo 1: Habilitar o carregamento de extensões no SQLite.
+        // O Sequelize não tem uma opção direta, então nos conectamos brevemente para habilitar.
+        // A conexão do Sequelize herdará essa capacidade.
+        await sequelize.authenticate();
+        
+        // Passo 2: Construir o caminho absoluto para o arquivo da extensão.
+        const vssPath = path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node');
+        
+        // Passo 3: Carregar a extensão usando a conexão do Sequelize.
+        // Usamos uma query SQL nativa para isso.
+        await sequelize.query(`SELECT load_extension('${vssPath}');`);
+        log('✅ Extensão VSS carregada com sucesso na conexão do Sequelize.');
 
+        // Passo 4: Sincronizar todos os modelos com o banco de dados.
         log('Sincronizando models com o banco de dados (alter: true)...');
         await sequelize.sync({ alter: true });
         log('✅ Models sincronizados com sucesso.');
         
-        // Cria a tabela virtual VSS se ela não existir
+        // Passo 5: Criar a tabela virtual VSS, agora que a extensão está carregada.
         await sequelize.query(`
             CREATE VIRTUAL TABLE IF NOT EXISTS vss_criteria USING vss0(
                 embedding(1536)
@@ -74,7 +62,11 @@ const initializeDatabase = async () => {
         log('✅ Tabela virtual VSS verificada/criada com sucesso.');
 
     } catch (err) {
-        logError('Falha crítica ao inicializar o banco de dados ou a extensão VSS.', err);
+        logError('Falha crítica ao inicializar o banco de dados ou a extensão VSS.', {
+            message: err.message,
+            stack: err.stack,
+            originalError: err.original?.message
+        });
         process.exit(1);
     }
 };
@@ -128,7 +120,6 @@ const startServer = async () => {
     app.use(express.static(path.join(__dirname, 'public')));
     log('--- INICIALIZAÇÃO DO SERVIDOR ---');
 
-    // Chama a função de inicialização centralizada no início
     await initializeDatabase();
 
     initializeSessionService(memoryStorageAdapter);
