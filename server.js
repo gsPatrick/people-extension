@@ -19,6 +19,7 @@ import { getFromCache } from './src/utils/cache.service.js';
 import { createUser, findUserByEmail } from './src/Core/User-Flow/userService.js';
 import apiRoutes from './src/routes/apiRoutes.js';
 import cors from 'cors';
+import { initializeVectorDB } from './src/services/vector.service.js'; // <-- 1. IMPORTE O NOVO SERVIÇO
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -110,6 +111,8 @@ const startServer = async () => {
 
     // <-- MUDANÇA: A lógica de remoção de arquivo e VSS foi removida.
     await initializeDatabase();
+    // <-- 2. ADICIONE A CHAMADA DE INICIALIZAÇÃO DO LANCEDB AQUI
+    await initializeVectorDB(); 
 
     initializeSessionService(memoryStorageAdapter);
     initializeAuthStorage(memoryStorageAdapter);

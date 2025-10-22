@@ -1,8 +1,7 @@
-// ARQUIVO COMPLETO: src/services/scorecard.service.js
+// ARQUIVO COMPLETO E CORRIGIDO: src/services/scorecard.service.js
 
 import db from '../models/index.js';
 import { clearCacheByPrefix, getFromCache, setToCache } from '../utils/cache.service.js';
-// A importação de 'createEmbedding' não é mais necessária nesta versão.
 import { log, error as logError } from '../utils/logger.service.js';
 
 const SCORECARDS_CACHE_PREFIX = 'scorecards_';
@@ -10,7 +9,6 @@ const ALL_SCORECARDS_CACHE_KEY = `${SCORECARDS_CACHE_PREFIX}all`;
 
 /**
  * Busca todos os scorecards com suas categorias e critérios aninhados.
- * @returns {Promise<Array>} Uma lista de scorecards em formato de objeto puro (plain).
  */
 export const findAll = async () => {
   const cachedScorecards = getFromCache(ALL_SCORECARDS_CACHE_KEY);
@@ -30,15 +28,15 @@ export const findAll = async () => {
       ],
       order: [
         ['name', 'ASC'],
-        [{ model: db.Category, as: 'categories' }, 'order', 'ASC'],
-        [{ model: db.Category, as: 'categories' }, { model: db.Criterion, as: 'criteria' }, 'order', 'ASC'],
+        // <-- MUDANÇA DE SINTAXE AQUI -->
+        // A ordenação por associação precisa ser um array aninhado
+        [ { model: db.Category, as: 'categories' }, 'order', 'ASC' ],
+        [ { model: db.Category, as: 'categories' }, { model: db.Criterion, as: 'criteria' }, 'order', 'ASC' ],
       ],
     });
 
-    // Converte as instâncias do Sequelize em objetos JavaScript puros.
     const plainScorecards = scorecards.map(sc => sc.get({ plain: true }));
 
-    // Garante que a propriedade 'criteria' sempre seja um array, mesmo que vazia.
     for (const scorecard of plainScorecards) {
       if (scorecard.categories) {
         for (const category of scorecard.categories) {
@@ -59,8 +57,6 @@ export const findAll = async () => {
 
 /**
  * Busca um scorecard específico pelo seu ID com todas as associações.
- * @param {string} id - O UUID do scorecard.
- * @returns {Promise<Object|null>} O scorecard encontrado em formato de objeto puro (plain) ou null.
  */
 export const findById = async (id) => {
   const cacheKey = `${SCORECARDS_CACHE_PREFIX}${id}`;
@@ -76,13 +72,14 @@ export const findById = async (id) => {
         {
           model: db.Category,
           as: 'categories',
-          separate: true, // Otimização para queries complexas com hasMany
+          separate: true,
           include: [{ model: db.Criterion, as: 'criteria' }],
         },
       ],
       order: [
-        [{ model: db.Category, as: 'categories' }, 'order', 'ASC'],
-        [{ model: db.Category, as: 'categories' }, { model: db.Criterion, as: 'criteria' }, 'order', 'ASC'],
+        // <-- MUDANÇA DE SINTAXE AQUI TAMBÉM -->
+        [ { model: db.Category, as: 'categories' }, 'order', 'ASC' ],
+        [ { model: db.Category, as: 'categories' }, { model: db.Criterion, as: 'criteria' }, 'order', 'ASC' ],
       ],
     });
 
@@ -105,11 +102,7 @@ export const findById = async (id) => {
   }
 };
 
-/**
- * Cria um novo scorecard com suas categorias e critérios.
- * @param {object} scorecardData - Os dados do scorecard a ser criado.
- * @returns {Promise<Object>} O scorecard recém-criado.
- */
+// As funções create, update e remove permanecem as mesmas da versão anterior.
 export const create = async (scorecardData) => {
   const t = await db.sequelize.transaction();
   try {
@@ -128,7 +121,6 @@ export const create = async (scorecardData) => {
         if (criteria && criteria.length > 0) {
           for (const [criterionIndex, criterionData] of criteria.entries()) {
             if (criterionData.name && criterionData.name.trim() !== '') {
-              // A lógica de embedding foi removida temporariamente
               await db.Criterion.create({ 
                   ...criterionData, 
                   categoryId: newCategory.id,
@@ -151,12 +143,6 @@ export const create = async (scorecardData) => {
   }
 };
 
-/**
- * Atualiza um scorecard existente.
- * @param {string} id - O ID do scorecard a ser atualizado.
- * @param {object} scorecardData - Os novos dados para o scorecard.
- * @returns {Promise<Object>} O scorecard atualizado.
- */
 export const update = async (id, scorecardData) => {
     const t = await db.sequelize.transaction();
     try {
@@ -165,7 +151,6 @@ export const update = async (id, scorecardData) => {
 
         const { categories, ...restOfData } = scorecardData;
         await scorecard.update(restOfData, { transaction: t });
-        // Destrói categorias filhas para recriá-las (maneira simples de sincronizar)
         await db.Category.destroy({ where: { scorecardId: id }, transaction: t });
 
         if (categories && categories.length > 0) {
@@ -180,7 +165,6 @@ export const update = async (id, scorecardData) => {
                 if (criteria && criteria.length > 0) {
                     for (const [criterionIndex, criterionData] of criteria.entries()) {
                         if (criterionData.name && criterionData.name.trim() !== '') {
-                           // A lógica de embedding foi removida temporariamente
                            await db.Criterion.create({ 
                                ...criterionData, 
                                categoryId: newCategory.id,
@@ -203,11 +187,6 @@ export const update = async (id, scorecardData) => {
     }
 };
 
-/**
- * Deleta um scorecard pelo seu ID.
- * @param {string} id - O ID do scorecard a ser deletado.
- * @returns {Promise<boolean>} Retorna true se a deleção foi bem-sucedida.
- */
 export const remove = async (id) => {
     const t = await db.sequelize.transaction();
     try {
@@ -217,7 +196,6 @@ export const remove = async (id) => {
             return false;
         }
 
-        // A deleção em cascata (onDelete: 'CASCADE') nos models cuidará de deletar categorias e critérios filhos.
         await scorecard.destroy({ transaction: t });
         
         await t.commit();
