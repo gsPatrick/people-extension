@@ -5,7 +5,6 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import _ from 'lodash';
-import util from 'util'; // Importa o módulo 'util' do Node.js
 
 // Importando serviços e inicializadores
 import { configureLogger, log, error as logError } from './src/utils/logger.service.js';
@@ -35,24 +34,32 @@ const TALENTS_CACHE_KEY = 'all_talents';
 const initializeDatabase = async () => {
     log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize) ---');
     const connection = await sequelize.connectionManager.getConnection();
+    
     try {
-        // Converte os métodos de callback do driver sqlite3 para Promises
-        const enableLoadExtension = util.promisify(connection.enableLoadExtension).bind(connection);
-        const loadExtension = util.promisify(connection.loadExtension).bind(connection);
-
         // Passo 1: Habilitar o carregamento de extensões (corrige o erro "not authorized")
-        await enableLoadExtension(true);
-        log('✅ Carregamento de extensões habilitado na conexão.');
+        // Envolvemos a chamada em uma Promise manual, pois a API não é compatível com promisify.
+        await new Promise((resolve, reject) => {
+            connection.driver.enableLoadExtension(true, (err) => {
+                if (err) return reject(err);
+                log('✅ Carregamento de extensões habilitado na conexão.');
+                resolve();
+            });
+        });
 
         // Passo 2: Construir o caminho absoluto para o arquivo da extensão
         const vssPath = path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node');
         
         // Passo 3: Carregar a extensão VSS na conexão ativa
-        await loadExtension(vssPath);
-        log('✅ Extensão VSS carregada com sucesso na conexão do Sequelize.');
+        await new Promise((resolve, reject) => {
+            connection.driver.loadExtension(vssPath, (err) => {
+                if (err) return reject(err);
+                log('✅ Extensão VSS carregada com sucesso na conexão do Sequelize.');
+                resolve();
+            });
+        });
 
     } catch (err) {
-        logError('Falha crítica ao habilitar ou carregar a extensão VSS.', { message: err.message });
+        logError('Falha crítica ao habilitar ou carregar a extensão VSS.', { message: err.message, stack: err.stack });
         process.exit(1);
     } finally {
         // Passo 4: Liberar a conexão de volta para o pool do Sequelize
@@ -60,7 +67,7 @@ const initializeDatabase = async () => {
     }
 
     try {
-        // Passo 5: Sincronizar os modelos. O Sequelize usará o pool de conexões já configurado.
+        // Passo 5: Sincronizar os modelos
         log('Sincronizando models com o banco de dados (alter: true)...');
         await sequelize.sync({ alter: true });
         log('✅ Models sincronizados com sucesso.');
