@@ -17,6 +17,7 @@ import { getFromCache } from './src/utils/cache.service.js';
 import { createUser, findUserByEmail } from './src/Core/User-Flow/userService.js';
 import apiRoutes from './src/routes/apiRoutes.js';
 import { createRequire } from 'node:module';
+import cors from 'cors'; // <--- ADICIONADO
 
 const require = createRequire(import.meta.url); // Necessário para sqlite-vss
 const sqliteVss = require('sqlite-vss');
