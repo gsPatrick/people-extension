@@ -4,7 +4,7 @@ FROM mirror.gcr.io/library/node:20-slim AS build
 # Diretório de trabalho
 WORKDIR /app
 
-# Instala dependências do sistema necessárias para compilação de nativos
+# Instala dependências do sistema
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         python3 \
@@ -14,43 +14,31 @@ RUN apt-get update && \
         make \
         libsqlite3-dev \
         sqlite3 \
-        poppler-utils && \
+        poppler-utils \
+        curl && \
     rm -rf /var/lib/apt/lists/*
 
-# Copia apenas package.json e package-lock.json para cache de Docker
+# Copia package.json
 COPY package*.json ./
 
-# IMPORTANTE: Instala TODAS as dependências primeiro (incluindo devDependencies)
-# porque sqlite-vss precisa de node-gyp que está em devDependencies
-RUN npm install --build-from-source
+# Instala dependências
+RUN npm install --omit=dev --build-from-source
 
-# Agora rebuild sqlite-vss especificamente
-RUN npm rebuild sqlite-vss --build-from-source
+# Baixa a extensão VSS pré-compilada
+RUN mkdir -p /app/extensions && \
+    curl -L https://github.com/asg017/sqlite-vss/releases/download/v0.1.2/vss0-linux-x86_64.so \
+    -o /app/extensions/vss0.so && \
+    chmod +x /app/extensions/vss0.so && \
+    echo "✅ Extensão VSS baixada com sucesso"
 
-# Verifica se a extensão VSS foi compilada e mostra detalhes
-RUN echo "=== Verificando compilação do sqlite-vss ===" && \
-    if [ -f node_modules/sqlite-vss/build/Release/vss0.node ]; then \
-        echo "✅ Extensão VSS compilada com sucesso!"; \
-        ls -lh node_modules/sqlite-vss/build/Release/vss0.node; \
-    else \
-        echo "❌ AVISO: Extensão VSS não foi compilada"; \
-        echo "Procurando arquivos .node:"; \
-        find node_modules/sqlite-vss -name "*.node" 2>/dev/null || echo "Nenhum arquivo .node encontrado"; \
-        echo "Estrutura do diretório sqlite-vss:"; \
-        ls -la node_modules/sqlite-vss/ 2>/dev/null || echo "Diretório não encontrado"; \
-    fi
-
-# Remove devDependencies após a compilação para reduzir tamanho
-RUN npm prune --omit=dev
-
-# Copia todo o resto do código
+# Copia código
 COPY . .
 
 # --- Estágio 2: Runtime ---
 FROM mirror.gcr.io/library/node:20-slim AS runtime
 WORKDIR /app
 
-# Instala apenas dependências de runtime necessárias para sqlite-vss
+# Instala dependências de runtime
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libsqlite3-0 \
@@ -65,6 +53,7 @@ EXPOSE 80
 
 # Define ambiente de produção
 ENV NODE_ENV=production
+ENV VSS_EXTENSION_PATH=/app/extensions/vss0.so
 
 # Comando padrão
 CMD ["node", "server.js"]

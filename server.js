@@ -44,12 +44,14 @@ const initializeDatabase = async () => {
         try {
             // Lista de possíveis caminhos para a extensão
             const possiblePaths = [
+                process.env.VSS_EXTENSION_PATH, // Caminho definido no Dockerfile
+                '/app/extensions/vss0.so', // Extensão pré-compilada
                 path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node'),
                 path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'vss0.node'),
                 path.join(__dirname, 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node'),
                 path.join(__dirname, '..', 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node'),
                 '/app/node_modules/sqlite-vss/build/Release/vss0.node', // Caminho absoluto para Docker
-            ];
+            ].filter(Boolean); // Remove valores null/undefined
 
             let vssPath = null;
             log('🔍 Procurando extensão VSS nos seguintes caminhos:');
