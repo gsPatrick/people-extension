@@ -1,10 +1,12 @@
-# --- Estágio 1: Build ---
+# ===============================
+# --- ESTÁGIO 1: BUILD ---
+# ===============================
 FROM mirror.gcr.io/library/node:20-slim AS build
 
 # Diretório de trabalho
 WORKDIR /app
 
-# Instala dependências do sistema
+# Atualiza pacotes e instala dependências essenciais para build
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         python3 \
@@ -18,42 +20,50 @@ RUN apt-get update && \
         curl && \
     rm -rf /var/lib/apt/lists/*
 
-# Copia package.json
+# Copia manifestos de dependências
 COPY package*.json ./
 
-# Instala dependências
+# Instala dependências (com build nativo)
 RUN npm install --omit=dev --build-from-source
 
-# Baixa a extensão VSS pré-compilada
+# 🔧 Recompila sqlite3 e sqlite-vss com suporte total a extensões externas
+RUN npm rebuild sqlite3 --build-from-source --sqlite=/usr && \
+    npm rebuild sqlite-vss --build-from-source
+
+# 📦 Baixa a extensão VSS pré-compilada
 RUN mkdir -p /app/extensions && \
     curl -L https://github.com/asg017/sqlite-vss/releases/download/v0.1.2/vss0-linux-x86_64.so \
     -o /app/extensions/vss0.so && \
-    chmod +x /app/extensions/vss0.so && \
-    echo "✅ Extensão VSS baixada com sucesso"
+    chmod 755 /app/extensions/vss0.so && \
+    echo "✅ Extensão VSS baixada e configurada com sucesso."
 
-# Copia código
+# Copia o restante do código da aplicação
 COPY . .
 
-# --- Estágio 2: Runtime ---
+# ===============================
+# --- ESTÁGIO 2: RUNTIME ---
+# ===============================
 FROM mirror.gcr.io/library/node:20-slim AS runtime
+
 WORKDIR /app
 
-# Instala dependências de runtime
+# Instala apenas dependências necessárias para execução
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libsqlite3-0 \
-        poppler-utils && \
+        poppler-utils \
+        curl && \
     rm -rf /var/lib/apt/lists/*
 
-# Copia app + node_modules do build stage
+# Copia arquivos do estágio de build
 COPY --from=build /app ./
 
-# Expõe a porta
+# Expõe a porta da aplicação
 EXPOSE 80
 
-# Define ambiente de produção
+# Define variáveis de ambiente
 ENV NODE_ENV=production
 ENV VSS_EXTENSION_PATH=/app/extensions/vss0.so
 
-# Comando padrão
+# Comando padrão de inicialização
 CMD ["node", "server.js"]
