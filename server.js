@@ -115,6 +115,7 @@ const seedAdminUser = async () => {
 };
 
 const startServer = async () => {
+    const app = express(); // ✅ Adicione esta linha
     configureLogger({ toFile: true });
     app.use(cors());
     app.use(express.json());
