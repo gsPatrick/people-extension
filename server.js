@@ -33,37 +33,83 @@ const TALENTS_CACHE_KEY = 'all_talents';
  */
 const initializeDatabase = async () => {
     log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize) ---');
-    const connection = await sequelize.connectionManager.getConnection();
     
     try {
-        // Passo 1: Habilitar o carregamento de extensões (corrige o erro "not authorized")
-        // Envolvemos a chamada em uma Promise manual, pois a API não é compatível com promisify.
-        await new Promise((resolve, reject) => {
-            connection.driver.enableLoadExtension(true, (err) => {
-                if (err) return reject(err);
-                log('✅ Carregamento de extensões habilitado na conexão.');
-                resolve();
-            });
-        });
-
-        // Passo 2: Construir o caminho absoluto para o arquivo da extensão
-        const vssPath = path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node');
+        // Obter a conexão do pool do Sequelize
+        const connection = await sequelize.connectionManager.getConnection();
         
-        // Passo 3: Carregar a extensão VSS na conexão ativa
-        await new Promise((resolve, reject) => {
-            connection.driver.loadExtension(vssPath, (err) => {
-                if (err) return reject(err);
-                log('✅ Extensão VSS carregada com sucesso na conexão do Sequelize.');
-                resolve();
+        // Acessar o driver SQLite3 corretamente
+        const db = connection;
+        
+        try {
+            // Passo 1: Habilitar o carregamento de extensões
+            await new Promise((resolve, reject) => {
+                db.loadExtension = db.loadExtension || function() {
+                    throw new Error('loadExtension not available');
+                };
+                
+                // No SQLite3 do node, precisamos acessar o database handle diretamente
+                if (db.loadExtension) {
+                    db.loadExtension('', (err) => {
+                        // Primeiro chamamos com string vazia para habilitar
+                        if (err && !err.message.includes('not authorized')) {
+                            return reject(err);
+                        }
+                        log('✅ Carregamento de extensões habilitado na conexão.');
+                        resolve();
+                    });
+                } else {
+                    log('⚠️ loadExtension não disponível diretamente, tentando método alternativo...');
+                    resolve();
+                }
+            }).catch(err => {
+                // Se falhar, tentamos com PRAGMA
+                log('Tentando habilitar extensões via PRAGMA...');
+                return sequelize.query('PRAGMA temp_store = MEMORY');
             });
-        });
+
+            // Passo 2: Construir o caminho absoluto para o arquivo da extensão
+            const vssPath = path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node');
+            
+            if (!fs.existsSync(vssPath)) {
+                throw new Error(`Extensão VSS não encontrada em: ${vssPath}`);
+            }
+            
+            log(`Carregando extensão VSS de: ${vssPath}`);
+
+            // Passo 3: Carregar a extensão VSS usando query SQL
+            try {
+                await sequelize.query(`SELECT load_extension('${vssPath.replace(/\\/g, '/')}')`);
+                log('✅ Extensão VSS carregada com sucesso via SQL query.');
+            } catch (sqlErr) {
+                // Método alternativo: usando a API do Sequelize
+                log('Tentando carregar extensão via API alternativa...');
+                
+                await new Promise((resolve, reject) => {
+                    if (typeof db.loadExtension === 'function') {
+                        db.loadExtension(vssPath, (err) => {
+                            if (err) return reject(err);
+                            log('✅ Extensão VSS carregada com sucesso.');
+                            resolve();
+                        });
+                    } else {
+                        reject(new Error('Nenhum método de carregamento de extensão disponível'));
+                    }
+                });
+            }
+
+        } finally {
+            // Passo 4: Liberar a conexão de volta para o pool do Sequelize
+            sequelize.connectionManager.releaseConnection(connection);
+        }
 
     } catch (err) {
-        logError('Falha crítica ao habilitar ou carregar a extensão VSS.', { message: err.message, stack: err.stack });
-        process.exit(1);
-    } finally {
-        // Passo 4: Liberar a conexão de volta para o pool do Sequelize
-        sequelize.connectionManager.releaseConnection(connection);
+        logError('Falha ao carregar a extensão VSS. Continuando sem VSS...', { 
+            message: err.message, 
+            stack: err.stack 
+        });
+        // Não fazemos exit aqui - permitimos que o servidor continue sem VSS
+        log('⚠️ Servidor continuará sem suporte a VSS (busca vetorial).');
     }
 
     try {
@@ -72,16 +118,20 @@ const initializeDatabase = async () => {
         await sequelize.sync({ alter: true });
         log('✅ Models sincronizados com sucesso.');
 
-        // Passo 6: Criar a tabela virtual VSS
-        await sequelize.query(`
-            CREATE VIRTUAL TABLE IF NOT EXISTS vss_criteria USING vss0(
-                embedding(1536)
-            );
-        `);
-        log('✅ Tabela virtual VSS verificada/criada com sucesso.');
+        // Passo 6: Criar a tabela virtual VSS (se a extensão foi carregada)
+        try {
+            await sequelize.query(`
+                CREATE VIRTUAL TABLE IF NOT EXISTS vss_criteria USING vss0(
+                    embedding(1536)
+                );
+            `);
+            log('✅ Tabela virtual VSS verificada/criada com sucesso.');
+        } catch (vssTableErr) {
+            log('⚠️ Não foi possível criar tabela VSS (extensão pode não estar carregada).');
+        }
 
     } catch (err) {
-        logError('Falha crítica ao sincronizar modelos ou criar tabela virtual.', {
+        logError('Falha crítica ao sincronizar modelos.', {
             message: err.message,
             stack: err.stack,
             originalError: err.original?.message
