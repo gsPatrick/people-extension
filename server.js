@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import _ from 'lodash';
+import express from 'express';
 import { configureLogger, log, error as logError } from './src/utils/logger.service.js';
 import { memoryStorageAdapter } from './src/Platform/Storage/memoryStorage.adapter.js';
 import { initializeSessionService } from './src/Core/session.service.js';
@@ -17,12 +18,13 @@ import { createUser, findUserByEmail } from './src/Core/User-Flow/userService.js
 import apiRoutes from './src/routes/apiRoutes.js';
 import { createRequire } from 'node:module';
 
-const require = createRequire(import.meta.url); // ✅ Necessário para sqlite-vss
+const require = createRequire(import.meta.url); // Necessário para sqlite-vss
 const sqliteVss = require('sqlite-vss');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const PORT = process.env.PORT || 4000;
 const JOBS_CACHE_KEY = 'all_jobs_with_details';
 const TALENTS_CACHE_KEY = 'all_talents';
 
@@ -70,11 +72,11 @@ export const initializeDatabase = async () => {
     }
 };
 
-
-
+// --- Funções de sincronização ---
 const syncJobs = () => syncEntityCache(JOBS_CACHE_KEY, fetchAllJobsWithDetails);
 const syncTalents = () => syncEntityCache(TALENTS_CACHE_KEY, fetchAllTalentsForSync);
 
+// --- Pré-carregamento de candidatos ---
 const prefetchAllCandidates = async () => {
     log('--- PREFETCH WORKER: Iniciando pré-carregamento de candidatos InHire ---');
     const allJobs = getFromCache(JOBS_CACHE_KEY);
@@ -92,6 +94,7 @@ const prefetchAllCandidates = async () => {
     log('--- PREFETCH WORKER: Pré-carregamento de candidatos InHire concluído. ---');
 };
 
+// --- Criação do usuário admin ---
 const seedAdminUser = async () => {
     const adminEmail = 'admin@admin.com';
     const existingAdmin = await findUserByEmail(adminEmail);
@@ -114,8 +117,10 @@ const seedAdminUser = async () => {
     }
 };
 
+// --- Inicialização do servidor ---
 const startServer = async () => {
-    const app = express(); // ✅ Adicione esta linha
+    const app = express(); // ✅ Necessário para corrigir ReferenceError
+
     configureLogger({ toFile: true });
     app.use(cors());
     app.use(express.json());
@@ -155,6 +160,7 @@ const startServer = async () => {
         prefetchAllCandidates().catch(err => logError("Erro durante o pré-carregamento em segundo plano:", err));
     });
 
+    // Sincronização periódica a cada 60 segundos
     setInterval(syncJobs, 60000);
     setInterval(syncTalents, 60000);
     log('🔄 Sincronização periódica de Vagas e Talentos agendada a cada 60s.');
