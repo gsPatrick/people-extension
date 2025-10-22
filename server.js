@@ -2,8 +2,10 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import _ from 'lodash';
+import sqlite3 from 'sqlite3';
 
 // Importando serviços e inicializadores
 import { configureLogger, log, error as logError } from './src/utils/logger.service.js';
@@ -11,7 +13,7 @@ import { memoryStorageAdapter } from './src/Platform/Storage/memoryStorage.adapt
 import { initializeSessionService } from './src/Core/session.service.js';
 import { initializeAuthStorage } from './src/Inhire/Auth/authStorage.service.js';
 import { performLogin } from './src/Core/Auth-Flow/authOrchestrator.js';
-import { sequelize } from './src/models/index.js'; // <- export nomeado
+import { sequelize } from './src/models/index.js'; // Importa a instância já configurada
 import { syncEntityCache } from './src/utils/sync.service.js';
 import { fetchAllJobsWithDetails } from './src/Core/Job-Flow/jobOrchestrator.js';
 import { fetchAllTalentsForSync, fetchCandidatesForJob } from './src/Core/management-flow/managementOrchestrator.js'; 
@@ -28,23 +30,51 @@ const JOBS_CACHE_KEY = 'all_jobs_with_details';
 const TALENTS_CACHE_KEY = 'all_talents';
 
 /**
- * Sincroniza os models do Sequelize com o banco de dados SQLite.
+ * Carrega a extensão VSS usando a conexão nativa do sqlite3.
+ * Esta função é chamada antes da sincronização do Sequelize.
+ */
+const loadVssExtension = () => {
+  return new Promise((resolve, reject) => {
+    const dbPath = sequelize.options.storage;
+    const db = new sqlite3.Database(dbPath, (err) => {
+      if (err) return reject(err);
+
+      // Constrói o caminho para o binário da extensão de forma robusta a partir da raiz do projeto
+      const vssPath = path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node');
+      
+      db.loadExtension(vssPath, (loadErr) => {
+        db.close(); // Fecha a conexão nativa após o carregamento
+        if (loadErr) return reject(loadErr);
+        resolve();
+      });
+    });
+  });
+};
+
+/**
+ * Sincroniza os models do Sequelize com o banco de dados SQLite e cria a tabela virtual.
+ * Esta é agora a única função responsável por esta tarefa.
  */
 const initializeDatabase = async () => {
     log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize) ---');
     try {
+        await loadVssExtension();
+        log('✅ Extensão VSS carregada com sucesso.');
+
         log('Sincronizando models com o banco de dados (alter: true)...');
         await sequelize.sync({ alter: true });
-
-        // Cria tabela virtual VSS se não existir
+        log('✅ Models sincronizados com sucesso.');
+        
+        // Cria a tabela virtual VSS se ela não existir
         await sequelize.query(`
             CREATE VIRTUAL TABLE IF NOT EXISTS vss_criteria USING vss0(
                 embedding(1536)
             );
         `);
-        log('✅ Models e tabela virtual VSS sincronizados com sucesso.');
+        log('✅ Tabela virtual VSS verificada/criada com sucesso.');
+
     } catch (err) {
-        logError('Falha crítica ao sincronizar os models/VSS com o banco de dados.', err);
+        logError('Falha crítica ao inicializar o banco de dados ou a extensão VSS.', err);
         process.exit(1);
     }
 };
@@ -98,6 +128,7 @@ const startServer = async () => {
     app.use(express.static(path.join(__dirname, 'public')));
     log('--- INICIALIZAÇÃO DO SERVIDOR ---');
 
+    // Chama a função de inicialização centralizada no início
     await initializeDatabase();
 
     initializeSessionService(memoryStorageAdapter);
