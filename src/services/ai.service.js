@@ -1,63 +1,95 @@
+
 import { OpenAI } from 'openai';
-import { log, error } from '../utils/logger.service.js';
+import { log, error as logError } from '../utils/logger.service.js';
+import _ from 'lodash';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 /**
- * Avalia um único critério com base em trechos relevantes de um perfil.
- * @param {object} criterion - O objeto do critério ({ name, description, weight }).
- * @param {string[]} relevantChunks - Os trechos de texto mais relevantes do perfil.
- * @returns {Promise<{ name: string, score: number, justification: string }>} A avaliação da IA.
+ * Remove campos desnecessários do perfil para economizar tokens.
+ * @param {object} profileData - Os dados brutos do perfil.
+ * @returns {object} O perfil simplificado.
  */
-export const analyzeCriterionWithAI = async (criterion, relevantChunks) => {
+const simplifyProfileForAI = (profileData) => {
+    return _.pick(profileData, [
+        'name', 'headline', 'about', 'experience', 
+        'education', 'skills', 'certifications', 'languages'
+    ]);
+};
+
+/**
+ * Analisa o perfil completo contra o scorecard completo em uma única chamada de IA.
+ * @param {object} scorecard - O objeto completo do scorecard.
+ * @param {object} profileData - Os dados do perfil do candidato.
+ * @returns {Promise<object>} O resultado da análise no formato esperado.
+ */
+export const analyzeProfileHolistically = async (scorecard, profileData) => {
   if (!process.env.OPENAI_API_KEY) throw new Error("Chave da API da OpenAI não configurada.");
 
+  const simplifiedProfile = simplifyProfileForAI(profileData);
+
+  const jsonStructure = {
+    overallScore: "number (0-100)",
+    categories: [
+      {
+        name: "string",
+        criteria: [
+          {
+            name: "string",
+            score: "number (1-5)",
+            justification: "string (justificativa curta e objetiva)"
+          }
+        ]
+      }
+    ]
+  };
+
   const prompt = `
-    Você é um Recrutador Sênior especialista em análise de perfis.
-    Sua tarefa é avaliar um único critério com base em trechos de um perfil do LinkedIn.
+    Você é um Recrutador Sênior especialista em análise de perfis para vagas de tecnologia.
+    Sua tarefa é avaliar um perfil completo de um candidato contra um scorecard completo.
 
-    **CRITÉRIO A SER AVALIADO:**
-    - Nome: "${criterion.name}"
-    - Descrição/Instrução: "${criterion.description || 'Avalie a competência ou experiência relacionada ao nome do critério.'}"
-    - Peso/Importância: ${criterion.weight} (1=Baixo, 2=Médio, 3=Alto)
+    **PERFIL DO CANDIDATO:**
+    ${JSON.stringify(simplifiedProfile, null, 2)}
 
-    **EVIDÊNCIAS (Trechos mais relevantes do perfil):**
-    ${relevantChunks.map(c => `- ${c}`).join('\n')}
+    **SCORECARD (CRITÉRIOS DE AVALIAÇÃO):**
+    ${JSON.stringify(scorecard.categories.map(c => ({ name: c.name, criteria: c.criteria.map(cr => cr.name) })), null, 2)}
 
-    **SUA ANÁLISE:**
-    1. Leia o critério e as evidências.
-    2. Atribua uma nota de 1 a 5, onde 1 é nenhuma evidência e 5 é evidência forte e direta.
-    3. Escreva uma justificativa curta e objetiva (1 frase) explicando o porquê da sua nota, citando as evidências.
+    **INSTRUÇÕES DETALHADAS:**
+    1.  Analise CADA critério listado no scorecard, usando o perfil do candidato como evidência.
+    2.  Para cada critério, atribua uma nota de 1 a 5 (1 = nenhuma evidência, 5 = evidência forte e direta).
+    3.  Para cada critério, escreva uma justificativa curta e objetiva (1-2 frases) para a sua nota, baseada nas evidências do perfil.
+    4.  Calcule um "Overall Score" de 0 a 100, representando o quão bem o candidato se alinha com o scorecard como um todo.
+    5.  Responda APENAS com um objeto JSON. Não inclua nenhum texto, explicação ou formatação markdown antes ou depois do JSON.
 
-    **Formato OBRIGATÓRIO da Resposta (APENAS JSON):**
-    {
-      "score": <sua nota de 1 a 5>,
-      "justification": "<sua justificativa objetiva>"
-    }
+    **ESTRUTURA OBRIGATÓRIA DO JSON DE SAÍDA:**
+    ${JSON.stringify(jsonStructure, null, 2)}
   `;
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo", // Um modelo mais rápido é ideal para esta tarefa focada
+      // gpt-4o-mini é rápido, inteligente e mais barato que o gpt-4-turbo
+      model: "gpt-4o-mini", 
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      temperature: 0.2, // Baixa temperatura para respostas mais factuais
+      temperature: 0.1, // Quase determinístico para consistência
     });
     
-    const result = JSON.parse(response.choices[0].message.content);
+    const content = response.choices[0].message.content;
+    const result = JSON.parse(content);
 
+    // Validação básica para garantir que a IA seguiu a estrutura
+    if (!result.overallScore || !Array.isArray(result.categories)) {
+        throw new Error("A resposta da IA não seguiu a estrutura JSON esperada.");
+    }
+    
     return {
-      name: criterion.name,
-      score: result.score || 1,
-      justification: result.justification || "Não foi possível gerar uma justificativa.",
+      ...result,
+      profileName: profileData.name,
+      profileHeadline: profileData.headline
     };
+
   } catch (err) {
-    error(`Falha na avaliação do critério "${criterion.name}" pela IA:`, err.message);
-    // Retorna uma falha gracefully para não quebrar todo o processo de match
-    return {
-      name: criterion.name,
-      score: 1,
-      justification: "Ocorreu um erro ao analisar este critério com a IA.",
-    };
+    logError(`Falha na análise holística pela IA:`, err.message);
+    throw new Error('Ocorreu um erro ao processar a análise com a IA.');
   }
 };
