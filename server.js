@@ -5,7 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import _ from 'lodash';
-import { sqliteVss } from 'sqlite-vss'; // 🪄 Import da lib moderna
+import sqliteVss from 'sqlite-vss';
 
 // Importando serviços e inicializadores
 import { configureLogger, log, error as logError } from './src/utils/logger.service.js';
