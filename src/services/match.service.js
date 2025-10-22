@@ -2,7 +2,8 @@ import { findById as findScorecardById } from './scorecard.service.js';
 import { createEmbeddings } from './embedding.service.js';
 import { analyzeCriterionWithAI } from './ai.service.js';
 import { log, error } from '../utils/logger.service.js';
-import { sequelize } from '../models';
+// A importação agora aponta para o arquivo index.js específico
+import { sequelize } from '../models/index.js';
 
 const chunkProfile = (profileData) => {
   const chunks = [];

@@ -1,4 +1,5 @@
-import { Scorecard, Category, Criterion, sequelize } from '../models';
+// A importação agora aponta para o arquivo index.js específico
+import { Scorecard, Category, Criterion, sequelize } from '../models/index.js';
 import { createEmbeddings } from './embedding.service.js';
 import { getFromCache, setToCache, clearCache } from '../utils/cache.service.js';
 import { log, error } from '../utils/logger.service.js';
