@@ -1,6 +1,5 @@
 import db from '../models/index.js';
 import { clearCacheByPrefix, getFromCache, setToCache } from '../utils/cache.service.js';
-// A linha abaixo agora funcionará, pois 'createEmbedding' existe e é exportado.
 import { createEmbedding } from './embedding.service.js';
 import { log, error as logError } from '../utils/logger.service.js';
 
@@ -9,10 +8,10 @@ const ALL_SCORECARDS_CACHE_KEY = `${SCORECARDS_CACHE_PREFIX}all`;
 
 /**
  * Busca todos os scorecards com suas categorias e critérios aninhados.
+ * Utiliza cache para otimizar as leituras.
  * @returns {Promise<Array>} Uma lista de scorecards.
  */
 export const findAll = async () => {
-  // ... (código da função findAll permanece o mesmo)
   const cachedScorecards = getFromCache(ALL_SCORECARDS_CACHE_KEY);
   if (cachedScorecards) {
     log('CACHE HIT: Retornando todos os scorecards do cache.');
@@ -49,12 +48,11 @@ export const findAll = async () => {
 };
 
 /**
- * Busca um scorecard específico pelo seu ID.
+ * Busca um scorecard específico pelo seu ID com todas as associações.
  * @param {string} id - O UUID do scorecard.
  * @returns {Promise<Object|null>} O scorecard encontrado ou null.
  */
 export const findById = async (id) => {
-  // ... (código da função findById permanece o mesmo)
   const cacheKey = `${SCORECARDS_CACHE_PREFIX}${id}`;
   const cachedScorecard = getFromCache(cacheKey);
   if (cachedScorecard) {
@@ -68,7 +66,7 @@ export const findById = async (id) => {
             {
               model: db.Category,
               as: 'categories',
-              separate: true,
+              separate: true, // Otimiza a query para 'hasMany'
               include: [
                 {
                   model: db.Criterion,
@@ -95,7 +93,8 @@ export const findById = async (id) => {
 
 /**
  * Cria um novo scorecard com suas categorias e critérios.
- * @param {object} scorecardData - Os dados do scorecard.
+ * Ignora critérios que não possuem uma descrição válida.
+ * @param {object} scorecardData - Os dados do scorecard a ser criado.
  * @returns {Promise<Object>} O scorecard recém-criado.
  */
 export const create = async (scorecardData) => {
@@ -115,13 +114,15 @@ export const create = async (scorecardData) => {
 
         if (criteria && criteria.length > 0) {
           for (const criterionData of criteria) {
-            // Esta chamada agora é válida
-            const embedding = await createEmbedding(criterionData.description);
-            await db.Criterion.create({
-              ...criterionData,
-              embedding,
-              categoryId: newCategory.id,
-            }, { transaction: t });
+            // Validação crucial: Processa e cria o critério APENAS se ele tiver uma descrição válida.
+            if (criterionData.description && criterionData.description.trim() !== '') {
+              const embedding = await createEmbedding(criterionData.description);
+              await db.Criterion.create({
+                ...criterionData,
+                embedding, // Agora 'embedding' nunca será nulo
+                categoryId: newCategory.id,
+              }, { transaction: t });
+            }
           }
         }
       }
@@ -142,12 +143,13 @@ export const create = async (scorecardData) => {
 
 /**
  * Atualiza um scorecard existente.
- * @param {string} id - O ID do scorecard.
- * @param {object} scorecardData - Os novos dados.
+ * Adota uma abordagem de "substituição" para categorias e critérios.
+ * Ignora critérios que não possuem uma descrição válida.
+ * @param {string} id - O ID do scorecard a ser atualizado.
+ * @param {object} scorecardData - Os novos dados para o scorecard.
  * @returns {Promise<Object>} O scorecard atualizado.
  */
 export const update = async (id, scorecardData) => {
-    // ... (código da função update permanece o mesmo, mas a chamada para 'createEmbedding' dentro dela agora é válida)
     const t = await db.sequelize.transaction();
     try {
         const scorecard = await db.Scorecard.findByPk(id, { transaction: t });
@@ -156,8 +158,8 @@ export const update = async (id, scorecardData) => {
         }
 
         const { categories, ...restOfData } = scorecardData;
-        await scorecard.update(restOfData, { transaction: t });
 
+        await scorecard.update(restOfData, { transaction: t });
         await db.Category.destroy({ where: { scorecardId: id }, transaction: t });
 
         if (categories && categories.length > 0) {
@@ -170,13 +172,15 @@ export const update = async (id, scorecardData) => {
 
                 if (criteria && criteria.length > 0) {
                     for (const criterionData of criteria) {
-                        // Esta chamada agora é válida
-                        const embedding = await createEmbedding(criterionData.description);
-                        await db.Criterion.create({
-                            ...criterionData,
-                            embedding,
-                            categoryId: newCategory.id,
-                        }, { transaction: t });
+                        // Validação crucial: Aplica a mesma lógica de validação na atualização.
+                        if (criterionData.description && criterionData.description.trim() !== '') {
+                            const embedding = await createEmbedding(criterionData.description);
+                            await db.Criterion.create({
+                                ...criterionData,
+                                embedding,
+                                categoryId: newCategory.id,
+                            }, { transaction: t });
+                        }
                     }
                 }
             }
@@ -197,11 +201,10 @@ export const update = async (id, scorecardData) => {
 
 /**
  * Deleta um scorecard pelo seu ID.
- * @param {string} id - O ID do scorecard.
+ * @param {string} id - O ID do scorecard a ser deletado.
  * @returns {Promise<void>}
  */
 export const remove = async (id) => {
-    // ... (código da função remove permanece o mesmo)
     const t = await db.sequelize.transaction();
     try {
         const scorecard = await db.Scorecard.findByPk(id, { transaction: t });
