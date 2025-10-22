@@ -6,6 +6,8 @@ import { authenticateToken, isAdmin } from '../middleware/authMiddleware.js';
 // Roteadores específicos
 import authRoutes from './authRoutes.js';
 import adminRoutes from './adminRoutes.js';
+import scorecardRoutes from './scorecard.routes.js'; // <-- 1. IMPORTAR O ROTEADOR
+import matchRoutes from './match.routes.js'; // <-- IMPORTAR O ROTEADOR DE MATCH TAMBÉM
 
 // Orquestradores para as rotas da aplicação
 import { validateProfile, handleConfirmCreation, handleEditTalent, handleDeleteTalent } from '../Core/Candidate-Flow/candidateOrchestrator.js';
@@ -39,7 +41,6 @@ router.use('/auth', authRoutes);
 
 // ==========================================================
 // 2. MIDDLEWARE DE AUTENTICAÇÃO GLOBAL
-// Todas as rotas definidas abaixo desta linha exigirão um token JWT válido.
 // ==========================================================
 router.use(authenticateToken);
 
@@ -51,9 +52,12 @@ router.use('/admin', isAdmin, adminRoutes);
 // ==========================================================
 // 4. ROTAS DA APLICAÇÃO (AGORA PROTEGIDAS POR TOKEN)
 // ==========================================================
+router.use('/scorecards', scorecardRoutes); // <-- 2. REGISTRAR O ROTEADOR AQUI
+router.use('/match', matchRoutes);         // <-- 2. REGISTRAR O ROTEADOR DE MATCH AQUI
 
 // --- ROTAS DE IA ---
 router.post('/ai/evaluate-scorecard', async (req, res) => {
+    // ... (restante do código permanece igual)
     const { talentId, jobDetails, scorecard, weights } = req.body;
     if (!talentId || !jobDetails || !scorecard || !weights) {
         return res.status(400).json({ error: 'Dados de talento, vaga, scorecard e pesos são obrigatórios.' });
@@ -76,9 +80,6 @@ router.get('/ai/cache-status/:talentId', async (req, res) => {
     }
 });
 
-// ==========================================================
-// NOVA ROTA PARA ATUALIZAÇÃO COMPLETA DE PERFIL
-// ==========================================================
 router.post('/update-full-profile', async (req, res) => {
     const { talentId, applicationId, scrapedData } = req.body;
     if (!talentId || !applicationId || !scrapedData) {
@@ -110,6 +111,7 @@ router.post('/ai/sync-profile', async (req, res) => {
     }
 });
 
+// ... (o restante do arquivo apiRoutes.js permanece exatamente igual)
 // --- ROTAS DE VAGAS E CANDIDATURAS ---
 router.get('/jobs', async (req, res) => {
     const { page, limit, status } = req.query;
@@ -257,9 +259,8 @@ router.get('/custom-fields/:entity', async (req, res) => {
 router.get('/interview-kit/:kitId', async (req, res) => {
     const { kitId } = req.params;
     const result = await fetchInterviewKitDetails(kitId);
-    // Agora a resposta sempre terá um objeto com a chave 'success'
     if (result.success) {
-        res.status(200).json(result); // Envia { success: true, kit: ... }
+        res.status(200).json(result);
     } else {
         res.status(404).json({ success: false, error: result.error });
     }
