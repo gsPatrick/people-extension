@@ -20,19 +20,28 @@ RUN apt-get update && \
 # Copia apenas package.json e package-lock.json para cache de Docker
 COPY package*.json ./
 
-# Instala dependências dentro do container e força compilação de extensões nativas
-RUN npm install --omit=dev --build-from-source
+# IMPORTANTE: Instala TODAS as dependências primeiro (incluindo devDependencies)
+# porque sqlite-vss precisa de node-gyp que está em devDependencies
+RUN npm install --build-from-source
 
-# Rebuild especificamente sqlite-vss para garantir compilação
-RUN npm rebuild sqlite-vss --build-from-source || echo "Aviso: sqlite-vss rebuild falhou"
+# Agora rebuild sqlite-vss especificamente
+RUN npm rebuild sqlite-vss --build-from-source
 
-# Verifica se a extensão VSS foi compilada
-RUN if [ -f node_modules/sqlite-vss/build/Release/vss0.node ]; then \
-        echo "✅ Extensão VSS compilada com sucesso em node_modules/sqlite-vss/build/Release/vss0.node"; \
+# Verifica se a extensão VSS foi compilada e mostra detalhes
+RUN echo "=== Verificando compilação do sqlite-vss ===" && \
+    if [ -f node_modules/sqlite-vss/build/Release/vss0.node ]; then \
+        echo "✅ Extensão VSS compilada com sucesso!"; \
+        ls -lh node_modules/sqlite-vss/build/Release/vss0.node; \
     else \
         echo "❌ AVISO: Extensão VSS não foi compilada"; \
+        echo "Procurando arquivos .node:"; \
         find node_modules/sqlite-vss -name "*.node" 2>/dev/null || echo "Nenhum arquivo .node encontrado"; \
+        echo "Estrutura do diretório sqlite-vss:"; \
+        ls -la node_modules/sqlite-vss/ 2>/dev/null || echo "Diretório não encontrado"; \
     fi
+
+# Remove devDependencies após a compilação para reduzir tamanho
+RUN npm prune --omit=dev
 
 # Copia todo o resto do código
 COPY . .
