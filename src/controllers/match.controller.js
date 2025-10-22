@@ -1,43 +1,36 @@
-import { Router } from 'express';
-import * as matchController from '../controllers/match.controller.js';
-
-const router = Router();
+import * as matchService from '../services/match.service.js';
+import { log, error as logError } from '../utils/logger.service.js';
 
 /**
- * @swagger
- * /api/match/{scorecardId}:
- *   post:
- *     summary: Analisa um perfil do LinkedIn contra um scorecard específico.
- *     description: Recebe os dados de um perfil scrapeado e retorna uma análise de match instantânea baseada em similaridade vetorial.
- *     tags: [Match]
- *     parameters:
- *       - in: path
- *         name: scorecardId
- *         required: true
- *         schema:
- *           type: string
- *         description: O ID do scorecard a ser usado para a análise.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             description: O objeto JSON completo retornado pelo script de scraping do LinkedIn.
- *     responses:
- *       200:
- *         description: Análise de match bem-sucedida.
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/MatchResult'
- *       400:
- *         description: Dados de entrada inválidos (scorecardId faltando ou corpo da requisição vazio).
- *       404:
- *         description: Scorecard não encontrado.
- *       500:
- *         description: Erro interno no servidor durante a análise.
+ * Manipulador para analisar um perfil. Extrai dados da requisição,
+ * chama o serviço de match e envia a resposta.
  */
-router.post('/:scorecardId', matchController.analyzeProfile);
+export const analyzeProfile = async (req, res) => {
+  const { scorecardId } = req.params;
+  const profileData = req.body;
 
-export default router;
+  // Validação básica de entrada
+  if (!scorecardId) {
+    return res.status(400).json({ message: 'O ID do Scorecard é obrigatório.' });
+  }
+  if (!profileData || Object.keys(profileData).length === 0) {
+    return res.status(400).json({ message: 'O corpo da requisição (dados do perfil) não pode estar vazio.' });
+  }
+
+  try {
+    log(`Controller recebendo requisição de análise para o scorecard: ${scorecardId}`);
+    
+    // Chama a função de serviço com a lógica de negócio
+    const matchResult = await matchService.analyze(scorecardId, profileData);
+    
+    // Envia o resultado com sucesso
+    res.status(200).json(matchResult);
+
+  } catch (err) {
+    logError(`Erro no controller de match: ${err.message}`);
+    
+    // Responde com o status code definido no serviço (ex: 404) ou um 500 genérico
+    const statusCode = err.statusCode || 500;
+    res.status(statusCode).json({ message: err.message || 'Ocorreu um erro interno no servidor.' });
+  }
+};
