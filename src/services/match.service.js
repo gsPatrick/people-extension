@@ -1,4 +1,4 @@
-// ARQUIVO COMPLETO E OTIMIZADO: src/services/match.service.js
+// ARQUIVO COMPLETO E CORRIGIDO: src/services/match.service.js
 
 import { findById as findScorecardById } from './scorecard.service.js';
 import { createEmbeddings } from './embedding.service.js';
@@ -38,7 +38,6 @@ export const analyze = async (scorecardId, profileData) => {
       throw err;
     }
     
-    // Única chamada para gerar embeddings do perfil
     const profileEmbeddings = await createEmbeddings(profileChunks);
     const chunkEmbeddingsMap = new Map(profileEmbeddings.map((emb, i) => [emb, profileChunks[i]]));
 
@@ -48,22 +47,26 @@ export const analyze = async (scorecardId, profileData) => {
 
     for (const category of scorecard.categories) {
       const analysisPromises = (category.criteria || []).map(async (criterion) => {
-        // <-- MUDANÇA CRÍTICA: USA O EMBEDDING PRÉ-CALCULADO -->
-        // Não chama mais createEmbedding aqui.
         if (!criterion.embedding) {
           logError(`Critério "${criterion.name}" (ID: ${criterion.id}) não possui embedding pré-calculado. Pulando.`);
           return null;
         }
         
-        // A busca no LanceDB agora é direta
         const searchResults = await searchSimilarVectors(criterion.embedding, 5);
         
         const relevantChunks = searchResults.map(result => {
              let bestMatchIndex = -1;
              let minDistance = Infinity;
+
              for (let i = 0; i < profileEmbeddings.length; i++) {
-                 // Esta é uma distância euclidiana simples para encontrar o chunk mais próximo.
-                 const dist = Math.sqrt(result.vector.reduce((sum, val, i) => sum + Math.pow(val - profileEmbeddings[i][i], 2), 0));
+                 const profileEmb = profileEmbeddings[i];
+                 
+                 // <-- MUDANÇA CRÍTICA AQUI -->
+                 // A comparação deve ser entre os elementos de mesmo índice de cada vetor.
+                 const dist = Math.sqrt(
+                     result.vector.reduce((sum, val, j) => sum + Math.pow(val - profileEmb[j], 2), 0)
+                 );
+                 
                  if (dist < minDistance) {
                      minDistance = dist;
                      bestMatchIndex = i;
@@ -74,7 +77,6 @@ export const analyze = async (scorecardId, profileData) => {
 
         const uniqueRelevantChunks = [...new Set(relevantChunks)];
 
-        // Única chamada à OpenAI por critério
         const evaluation = await analyzeCriterionWithAI(criterion, uniqueRelevantChunks);
         return { evaluation, weight: criterion.weight };
       });

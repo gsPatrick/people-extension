@@ -41,7 +41,7 @@ export const initializeDatabase = async () => {
         // Sincroniza os modelos. `force: true` apaga e recria as tabelas.
         // CUIDADO: Isso apaga todos os dados em cada reinicialização.
         log('Sincronizando models com o banco de dados (force: true)...');
-        await sequelize.sync({ force: true });
+        await sequelize.sync({ force: false });
         log('✅ Models sincronizados com sucesso (tabelas recriadas).');
 
     } catch (err) {
