@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import _ from 'lodash';
+import util from 'util'; // Importa o módulo 'util' do Node.js
 
 // Importando serviços e inicializadores
 import { configureLogger, log, error as logError } from './src/utils/logger.service.js';
@@ -12,7 +13,7 @@ import { memoryStorageAdapter } from './src/Platform/Storage/memoryStorage.adapt
 import { initializeSessionService } from './src/Core/session.service.js';
 import { initializeAuthStorage } from './src/Inhire/Auth/authStorage.service.js';
 import { performLogin } from './src/Core/Auth-Flow/authOrchestrator.js';
-import { sequelize } from './src/models/index.js'; // Importa a instância já configurada
+import { sequelize } from './src/models/index.js';
 import { syncEntityCache } from './src/utils/sync.service.js';
 import { fetchAllJobsWithDetails } from './src/Core/Job-Flow/jobOrchestrator.js';
 import { fetchAllTalentsForSync, fetchCandidatesForJob } from './src/Core/management-flow/managementOrchestrator.js'; 
@@ -29,31 +30,42 @@ const JOBS_CACHE_KEY = 'all_jobs_with_details';
 const TALENTS_CACHE_KEY = 'all_talents';
 
 /**
- * Centraliza a inicialização do banco de dados, carregando a extensão VSS
- * na mesma conexão que o Sequelize utiliza.
+ * Centraliza a inicialização do banco de dados.
  */
 const initializeDatabase = async () => {
     log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize) ---');
+    const connection = await sequelize.connectionManager.getConnection();
     try {
-        // Passo 1: Habilitar o carregamento de extensões no SQLite.
-        // O Sequelize não tem uma opção direta, então nos conectamos brevemente para habilitar.
-        // A conexão do Sequelize herdará essa capacidade.
-        await sequelize.authenticate();
-        
-        // Passo 2: Construir o caminho absoluto para o arquivo da extensão.
+        // Converte os métodos de callback do driver sqlite3 para Promises
+        const enableLoadExtension = util.promisify(connection.enableLoadExtension).bind(connection);
+        const loadExtension = util.promisify(connection.loadExtension).bind(connection);
+
+        // Passo 1: Habilitar o carregamento de extensões (corrige o erro "not authorized")
+        await enableLoadExtension(true);
+        log('✅ Carregamento de extensões habilitado na conexão.');
+
+        // Passo 2: Construir o caminho absoluto para o arquivo da extensão
         const vssPath = path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node');
         
-        // Passo 3: Carregar a extensão usando a conexão do Sequelize.
-        // Usamos uma query SQL nativa para isso.
-        await sequelize.query(`SELECT load_extension('${vssPath}');`);
+        // Passo 3: Carregar a extensão VSS na conexão ativa
+        await loadExtension(vssPath);
         log('✅ Extensão VSS carregada com sucesso na conexão do Sequelize.');
 
-        // Passo 4: Sincronizar todos os modelos com o banco de dados.
+    } catch (err) {
+        logError('Falha crítica ao habilitar ou carregar a extensão VSS.', { message: err.message });
+        process.exit(1);
+    } finally {
+        // Passo 4: Liberar a conexão de volta para o pool do Sequelize
+        sequelize.connectionManager.releaseConnection(connection);
+    }
+
+    try {
+        // Passo 5: Sincronizar os modelos. O Sequelize usará o pool de conexões já configurado.
         log('Sincronizando models com o banco de dados (alter: true)...');
         await sequelize.sync({ alter: true });
         log('✅ Models sincronizados com sucesso.');
-        
-        // Passo 5: Criar a tabela virtual VSS, agora que a extensão está carregada.
+
+        // Passo 6: Criar a tabela virtual VSS
         await sequelize.query(`
             CREATE VIRTUAL TABLE IF NOT EXISTS vss_criteria USING vss0(
                 embedding(1536)
@@ -62,7 +74,7 @@ const initializeDatabase = async () => {
         log('✅ Tabela virtual VSS verificada/criada com sucesso.');
 
     } catch (err) {
-        logError('Falha crítica ao inicializar o banco de dados ou a extensão VSS.', {
+        logError('Falha crítica ao sincronizar modelos ou criar tabela virtual.', {
             message: err.message,
             stack: err.stack,
             originalError: err.original?.message
