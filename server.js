@@ -12,8 +12,7 @@ import { memoryStorageAdapter } from './src/Platform/Storage/memoryStorage.adapt
 import { initializeSessionService } from './src/Core/session.service.js';
 import { initializeAuthStorage } from './src/Inhire/Auth/authStorage.service.js';
 import { performLogin } from './src/Core/Auth-Flow/authOrchestrator.js';
-import db from './src/models/index.js'; // CORREÇÃO 1: Importar o objeto 'db' padrão
-const { sequelize } = db; // CORREÇÃO 2: Extrair o sequelize do objeto 'db'
+import { sequelize } from './src/models/index.js';
 import { syncEntityCache } from './src/utils/sync.service.js';
 import { fetchAllJobsWithDetails } from './src/Core/Job-Flow/jobOrchestrator.js';
 import { fetchAllTalentsForSync, fetchCandidatesForJob } from './src/Core/management-flow/managementOrchestrator.js'; 
@@ -21,7 +20,6 @@ import { getFromCache } from './src/utils/cache.service.js';
 import { createUser, findUserByEmail } from './src/Core/User-Flow/userService.js';
 import apiRoutes from './src/routes/apiRoutes.js';
 
-// ... (o restante do arquivo permanece exatamente igual)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -30,21 +28,30 @@ const PORT = process.env.PORT || 4000;
 const JOBS_CACHE_KEY = 'all_jobs_with_details';
 const TALENTS_CACHE_KEY = 'all_talents';
 
+/**
+ * Centraliza a inicialização do banco de dados.
+ */
 const initializeDatabase = async () => {
     log('--- INICIALIZAÇÃO DO BANCO DE DADOS (SQLite + Sequelize) ---');
     
     try {
+        // Obter a conexão do pool do Sequelize
         const connection = await sequelize.connectionManager.getConnection();
+        
+        // Acessar o driver SQLite3 corretamente
         const db = connection;
         
         try {
+            // Passo 1: Habilitar o carregamento de extensões
             await new Promise((resolve, reject) => {
                 db.loadExtension = db.loadExtension || function() {
                     throw new Error('loadExtension not available');
                 };
                 
+                // No SQLite3 do node, precisamos acessar o database handle diretamente
                 if (db.loadExtension) {
                     db.loadExtension('', (err) => {
+                        // Primeiro chamamos com string vazia para habilitar
                         if (err && !err.message.includes('not authorized')) {
                             return reject(err);
                         }
@@ -56,10 +63,12 @@ const initializeDatabase = async () => {
                     resolve();
                 }
             }).catch(err => {
+                // Se falhar, tentamos com PRAGMA
                 log('Tentando habilitar extensões via PRAGMA...');
                 return sequelize.query('PRAGMA temp_store = MEMORY');
             });
 
+            // Passo 2: Construir o caminho absoluto para o arquivo da extensão
             const vssPath = path.join(process.cwd(), 'node_modules', 'sqlite-vss', 'build', 'Release', 'vss0.node');
             
             if (!fs.existsSync(vssPath)) {
@@ -68,10 +77,12 @@ const initializeDatabase = async () => {
             
             log(`Carregando extensão VSS de: ${vssPath}`);
 
+            // Passo 3: Carregar a extensão VSS usando query SQL
             try {
                 await sequelize.query(`SELECT load_extension('${vssPath.replace(/\\/g, '/')}')`);
                 log('✅ Extensão VSS carregada com sucesso via SQL query.');
             } catch (sqlErr) {
+                // Método alternativo: usando a API do Sequelize
                 log('Tentando carregar extensão via API alternativa...');
                 
                 await new Promise((resolve, reject) => {
@@ -88,6 +99,7 @@ const initializeDatabase = async () => {
             }
 
         } finally {
+            // Passo 4: Liberar a conexão de volta para o pool do Sequelize
             sequelize.connectionManager.releaseConnection(connection);
         }
 
@@ -96,14 +108,17 @@ const initializeDatabase = async () => {
             message: err.message, 
             stack: err.stack 
         });
+        // Não fazemos exit aqui - permitimos que o servidor continue sem VSS
         log('⚠️ Servidor continuará sem suporte a VSS (busca vetorial).');
     }
 
     try {
+        // Passo 5: Sincronizar os modelos
         log('Sincronizando models com o banco de dados (alter: true)...');
         await sequelize.sync({ alter: true });
         log('✅ Models sincronizados com sucesso.');
 
+        // Passo 6: Criar a tabela virtual VSS (se a extensão foi carregada)
         try {
             await sequelize.query(`
                 CREATE VIRTUAL TABLE IF NOT EXISTS vss_criteria USING vss0(
