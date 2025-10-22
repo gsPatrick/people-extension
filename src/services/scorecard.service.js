@@ -1,3 +1,5 @@
+// ARQUIVO COMPLETO: src/services/scorecard.service.js
+
 import db from '../models/index.js';
 import { clearCacheByPrefix, getFromCache, setToCache } from '../utils/cache.service.js';
 import { createEmbedding } from './embedding.service.js';
@@ -118,14 +120,26 @@ export const create = async (scorecardData) => {
     const newScorecard = await db.Scorecard.create(restOfData, { transaction: t });
 
     if (categories && categories.length > 0) {
-      for (const categoryData of categories) {
+      for (const [categoryIndex, categoryData] of categories.entries()) {
         const { criteria, ...restOfCategory } = categoryData;
-        const newCategory = await db.Category.create({ ...restOfCategory, scorecardId: newScorecard.id }, { transaction: t });
+        const newCategory = await db.Category.create({ 
+            ...restOfCategory, 
+            scorecardId: newScorecard.id,
+            order: categoryIndex // Adiciona a ordem da categoria
+        }, { transaction: t });
+
         if (criteria && criteria.length > 0) {
-          for (const criterionData of criteria) {
-            if (criterionData.description && criterionData.description.trim() !== '') {
-              const embedding = await createEmbedding(criterionData.description);
-              await db.Criterion.create({ ...criterionData, embedding, categoryId: newCategory.id }, { transaction: t });
+          for (const [criterionIndex, criterionData] of criteria.entries()) {
+            // *** CORREÇÃO APLICADA AQUI ***
+            // Gera o embedding a partir do 'name', que sempre existe.
+            if (criterionData.name && criterionData.name.trim() !== '') {
+              const embedding = await createEmbedding(criterionData.name);
+              await db.Criterion.create({ 
+                  ...criterionData, 
+                  embedding, 
+                  categoryId: newCategory.id,
+                  order: criterionIndex // Adiciona a ordem do critério
+              }, { transaction: t });
             }
           }
         }
@@ -160,14 +174,26 @@ export const update = async (id, scorecardData) => {
         await db.Category.destroy({ where: { scorecardId: id }, transaction: t });
 
         if (categories && categories.length > 0) {
-            for (const categoryData of categories) {
+            for (const [categoryIndex, categoryData] of categories.entries()) {
                 const { criteria, ...restOfCategory } = categoryData;
-                const newCategory = await db.Category.create({ ...restOfCategory, scorecardId: id }, { transaction: t });
+                const newCategory = await db.Category.create({ 
+                    ...restOfCategory, 
+                    scorecardId: id,
+                    order: categoryIndex // Adiciona a ordem da categoria
+                }, { transaction: t });
+
                 if (criteria && criteria.length > 0) {
-                    for (const criterionData of criteria) {
-                        if (criterionData.description && criterionData.description.trim() !== '') {
-                            const embedding = await createEmbedding(criterionData.description);
-                            await db.Criterion.create({ ...criterionData, embedding, categoryId: newCategory.id }, { transaction: t });
+                    for (const [criterionIndex, criterionData] of criteria.entries()) {
+                       // *** CORREÇÃO APLICADA AQUI ***
+                       // Gera o embedding a partir do 'name', que sempre existe.
+                        if (criterionData.name && criterionData.name.trim() !== '') {
+                            const embedding = await createEmbedding(criterionData.name);
+                            await db.Criterion.create({ 
+                                ...criterionData, 
+                                embedding, 
+                                categoryId: newCategory.id,
+                                order: criterionIndex // Adiciona a ordem do critério
+                            }, { transaction: t });
                         }
                     }
                 }
@@ -188,18 +214,22 @@ export const update = async (id, scorecardData) => {
 /**
  * Deleta um scorecard pelo seu ID.
  * @param {string} id - O ID do scorecard a ser deletado.
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>} Retorna true se a deleção foi bem-sucedida.
  */
 export const remove = async (id) => {
     const t = await db.sequelize.transaction();
     try {
         const scorecard = await db.Scorecard.findByPk(id, { transaction: t });
-        if (!scorecard) throw new Error('Scorecard não encontrado para deletar.');
+        if (!scorecard) {
+            logError(`Tentativa de deletar scorecard não existente com ID: ${id}`);
+            return false;
+        }
 
         await scorecard.destroy({ transaction: t });
         await t.commit();
         clearCacheByPrefix(SCORECARDS_CACHE_PREFIX);
         log(`Cache de scorecards invalidado após a remoção do scorecard ${id}.`);
+        return true;
     } catch (err) {
         await t.rollback();
         logError(`Erro ao deletar scorecard ${id}:`, err.message);
