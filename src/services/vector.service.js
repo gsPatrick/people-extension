@@ -21,15 +21,12 @@ export const initializeVectorDB = async () => {
         log('--- INICIALIZAÇÃO DO LANCEDB ---');
         db = await lancedb.connect(LANCEDB_DIR);
         log(`✅ Conectado ao LanceDB no diretório: ${LANCEDB_DIR}`);
-
         const tableNames = await db.tableNames();
         if (tableNames.includes(TABLE_NAME)) {
             table = await db.openTable(TABLE_NAME);
             log(`✅ Tabela de vetores '${TABLE_NAME}' aberta com sucesso.`);
         } else {
-            table = await db.createTable(TABLE_NAME, [
-                { vector: Array(VECTOR_DIMENSION).fill(0), uuid: 'dummy' }
-            ]);
+            table = await db.createTable(TABLE_NAME, [ { vector: Array(VECTOR_DIMENSION).fill(0), uuid: 'dummy' } ]);
             log(`✅ Tabela de vetores '${TABLE_NAME}' criada com sucesso.`);
         }
     } catch (err) {
@@ -90,7 +87,6 @@ export const searchSimilarVectors = async (queryVector, limit = 5) => {
             .search(queryVector)
             .limit(limit)
             .execute();
-        
         return results;
     } catch (err) {
         logError('Erro ao realizar busca vetorial no LanceDB:', err.message);
