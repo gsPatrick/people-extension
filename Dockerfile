@@ -1,12 +1,10 @@
-# ===============================
-# --- ESTÁGIO 1: BUILD ---
-# ===============================
+# --- Estágio 1: Build ---
 FROM mirror.gcr.io/library/node:20-slim AS build
 
 # Diretório de trabalho
 WORKDIR /app
 
-# Atualiza pacotes e instala dependências essenciais para build
+# Instala dependências do sistema necessárias
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         python3 \
@@ -20,50 +18,45 @@ RUN apt-get update && \
         curl && \
     rm -rf /var/lib/apt/lists/*
 
-# Copia manifestos de dependências
+# Copia os arquivos de dependência
 COPY package*.json ./
 
-# Instala dependências (com build nativo)
+# Instala dependências (sem dev)
 RUN npm install --omit=dev --build-from-source
 
-# 🔧 Recompila sqlite3 e sqlite-vss com suporte total a extensões externas
-RUN npm rebuild sqlite3 --build-from-source --sqlite=/usr && \
-    npm rebuild sqlite-vss --build-from-source
+# Recompila o sqlite-vss para garantir compatibilidade
+RUN npm rebuild sqlite-vss --build-from-source || echo "sqlite-vss rebuild falhou, continuando..."
 
-# 📦 Baixa a extensão VSS pré-compilada
+# Baixa a extensão VSS pré-compilada
 RUN mkdir -p /app/extensions && \
     curl -L https://github.com/asg017/sqlite-vss/releases/download/v0.1.2/vss0-linux-x86_64.so \
     -o /app/extensions/vss0.so && \
-    chmod 755 /app/extensions/vss0.so && \
-    echo "✅ Extensão VSS baixada e configurada com sucesso."
+    chmod +x /app/extensions/vss0.so && \
+    echo "✅ Extensão VSS baixada com sucesso"
 
-# Copia o restante do código da aplicação
+# Copia o restante do código
 COPY . .
 
-# ===============================
-# --- ESTÁGIO 2: RUNTIME ---
-# ===============================
+# --- Estágio 2: Runtime ---
 FROM mirror.gcr.io/library/node:20-slim AS runtime
-
 WORKDIR /app
 
-# Instala apenas dependências necessárias para execução
+# Instala dependências de runtime
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libsqlite3-0 \
-        poppler-utils \
-        curl && \
+        poppler-utils && \
     rm -rf /var/lib/apt/lists/*
 
-# Copia arquivos do estágio de build
+# Copia app e dependências do estágio anterior
 COPY --from=build /app ./
 
-# Expõe a porta da aplicação
+# Exposição da porta
 EXPOSE 80
 
 # Define variáveis de ambiente
 ENV NODE_ENV=production
 ENV VSS_EXTENSION_PATH=/app/extensions/vss0.so
 
-# Comando padrão de inicialização
+# Comando padrão
 CMD ["node", "server.js"]
