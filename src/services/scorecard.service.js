@@ -1,4 +1,4 @@
-// ARQUIVO COMPLETO E CORRIGIDO: src/services/scorecard.service.js
+// ARQUIVO COMPLETO E FINAL: src/services/scorecard.service.js
 
 import db from '../models/index.js';
 import { clearCacheByPrefix, getFromCache, setToCache } from '../utils/cache.service.js';
@@ -6,6 +6,26 @@ import { log, error as logError } from '../utils/logger.service.js';
 
 const SCORECARDS_CACHE_PREFIX = 'scorecards_';
 const ALL_SCORECARDS_CACHE_KEY = `${SCORECARDS_CACHE_PREFIX}all`;
+
+/**
+ * Função helper para ordenar os resultados em memória, em vez de na query SQL.
+ * @param {object} data - O objeto scorecard ou categoria.
+ */
+const sortChildrenInMemory = (data) => {
+    if (data.categories) {
+        // Ordena as categorias
+        data.categories.sort((a, b) => a.order - b.order);
+        
+        // Para cada categoria, ordena seus critérios
+        data.categories.forEach(category => {
+            if (category.criteria) {
+                category.criteria.sort((a, b) => a.order - b.order);
+            } else {
+                category.criteria = []; // Garante que criteria sempre seja um array
+            }
+        });
+    }
+};
 
 /**
  * Busca todos os scorecards com suas categorias e critérios aninhados.
@@ -26,26 +46,15 @@ export const findAll = async () => {
           include: [{ model: db.Criterion, as: 'criteria' }],
         },
       ],
-      order: [
-        ['name', 'ASC'],
-        // <-- MUDANÇA DE SINTAXE AQUI -->
-        // A ordenação por associação precisa ser um array aninhado
-        [ { model: db.Category, as: 'categories' }, 'order', 'ASC' ],
-        [ { model: db.Category, as: 'categories' }, { model: db.Criterion, as: 'criteria' }, 'order', 'ASC' ],
-      ],
+      // <-- MUDANÇA: Ordenação aninhada complexa removida da query principal.
+      // Apenas a ordenação do scorecard principal permanece.
+      order: [['name', 'ASC']],
     });
 
     const plainScorecards = scorecards.map(sc => sc.get({ plain: true }));
 
-    for (const scorecard of plainScorecards) {
-      if (scorecard.categories) {
-        for (const category of scorecard.categories) {
-          if (!category.criteria) {
-            category.criteria = [];
-          }
-        }
-      }
-    }
+    // <-- MUDANÇA: Ordena as associações em JavaScript após a busca.
+    plainScorecards.forEach(sortChildrenInMemory);
 
     setToCache(ALL_SCORECARDS_CACHE_KEY, plainScorecards);
     return plainScorecards;
@@ -76,22 +85,15 @@ export const findById = async (id) => {
           include: [{ model: db.Criterion, as: 'criteria' }],
         },
       ],
-      order: [
-        // <-- MUDANÇA DE SINTAXE AQUI TAMBÉM -->
-        [ { model: db.Category, as: 'categories' }, 'order', 'ASC' ],
-        [ { model: db.Category, as: 'categories' }, { model: db.Criterion, as: 'criteria' }, 'order', 'ASC' ],
-      ],
+      // <-- MUDANÇA: A cláusula 'order' complexa foi totalmente removida daqui.
     });
 
     if (scorecard) {
       const plainScorecard = scorecard.get({ plain: true });
-      if (plainScorecard.categories) {
-        for (const category of plainScorecard.categories) {
-          if (!category.criteria) {
-            category.criteria = [];
-          }
-        }
-      }
+      
+      // <-- MUDANÇA: Ordena as associações em JavaScript após a busca.
+      sortChildrenInMemory(plainScorecard);
+      
       setToCache(cacheKey, plainScorecard);
       return plainScorecard;
     }
@@ -102,7 +104,7 @@ export const findById = async (id) => {
   }
 };
 
-// As funções create, update e remove permanecem as mesmas da versão anterior.
+// As funções create, update e remove não precisam de alterações e permanecem como estão.
 export const create = async (scorecardData) => {
   const t = await db.sequelize.transaction();
   try {
@@ -195,7 +197,7 @@ export const remove = async (id) => {
             logError(`Tentativa de deletar scorecard não existente com ID: ${id}`);
             return false;
         }
-
+        
         await scorecard.destroy({ transaction: t });
         
         await t.commit();
