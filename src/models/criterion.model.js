@@ -1,10 +1,7 @@
-// ARQUIVO COMPLETO E CORRIGIDO: src/models/criterion.model.js
+// ARQUIVO COMPLETO E FINAL: src/models/criterion.model.js
 
 import { Model, DataTypes } from 'sequelize';
-// <-- MUDANÇA: As importações necessárias para os hooks foram restauradas aqui.
-import { addOrUpdateVector, deleteVector } from '../services/vector.service.js';
-import { createEmbedding } from '../services/embedding.service.js';
-import { log, error as logError } from '../utils/logger.service.js';
+// <-- MUDANÇA CRÍTICA: As importações de serviços foram REMOVIDAS do topo do arquivo.
 
 export default (sequelize) => {
   class Criterion extends Model {}
@@ -38,15 +35,16 @@ export default (sequelize) => {
     modelName: 'Criterion',
     tableName: 'criteria',
     timestamps: false,
-    // --- HOOKS PARA SINCRONIZAÇÃO COM LANCEDB ---
     hooks: {
       afterSave: async (criterion, options) => {
-        // 'afterSave' é executado tanto em 'create' quanto em 'update'.
+        // <-- MUDANÇA CRÍTICA: Os serviços são importados AQUI, dentro da função.
+        const { addOrUpdateVector } = await import('../services/vector.service.js');
+        const { createEmbedding } = await import('../services/embedding.service.js');
+        const { error: logError } = await import('../utils/logger.service.js');
+
         try {
-          // O texto a ser "embedado" pode ser a descrição ou, se não houver, o nome.
           const textToEmbed = criterion.description || criterion.name;
           if (textToEmbed && textToEmbed.trim() !== '') {
-            // A função 'createEmbedding' agora está definida e disponível.
             const embedding = await createEmbedding(textToEmbed);
             if (embedding) {
               await addOrUpdateVector(criterion.id, embedding);
@@ -57,7 +55,10 @@ export default (sequelize) => {
         }
       },
       afterDestroy: async (criterion, options) => {
-        // Após deletar no PostgreSQL, remove do LanceDB.
+        // <-- MUDANÇA CRÍTICA: Os serviços são importados AQUI também.
+        const { deleteVector } = await import('../services/vector.service.js');
+        const { error: logError } = await import('../utils/logger.service.js');
+
         try {
           await deleteVector(criterion.id);
         } catch (err) {
