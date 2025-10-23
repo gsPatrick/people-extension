@@ -1,12 +1,18 @@
-// ARQUIVO COMPLETO, FINAL E CORRIGIDO: src/services/match.service.js
+// ARQUIVO COMPLETO, FINAL E ULTRA-OTIMIZADO: src/services/match.service.js
 
 import { findById as findScorecardById } from './scorecard.service.js';
 import { createEmbeddings } from './embedding.service.js';
-import { analyzeCriterionWithAI } from './ai.service.js';
-// <-- MUDANÇA: Importamos as novas funções de gerenciamento de tabelas
-import { createProfileVectorTable, dropProfileVectorTable } from './vector.service.js';
+import { analyzeWithPreFilteredEvidence } from './ai.service.js'; // <-- MUDANÇA: Usaremos uma nova função de IA
+import { searchSimilarVectors } from './vector.service.js';
+import { getRawProfile, saveRawProfile } from '../Platform/Storage/localCache.service.js';
 import { log, error as logError } from '../utils/logger.service.js';
+import crypto from 'crypto';
 
+// Helper para criar um hash do conteúdo do perfil para usar como chave de cache
+const createProfileHash = (profileData) => {
+    const profileString = JSON.stringify(profileData);
+    return crypto.createHash('sha256').update(profileString).digest('hex');
+};
 const chunkProfile = (profileData) => {
   const chunks = [];
   if (profileData.headline) chunks.push(`Título: ${profileData.headline}`);
@@ -22,99 +28,70 @@ const chunkProfile = (profileData) => {
 
 export const analyze = async (scorecardId, profileData) => {
   const startTime = Date.now();
-  // Cria um nome de tabela único para esta requisição específica
-  const tempTableName = `profile_${Date.now()}`;
-  log(`Iniciando análise com tabela temporária '${tempTableName}'`);
+  log(`Iniciando análise ULTRA-OTIMIZADA para "${profileData.name}"`);
   
-  let profileTable; // Variável para manter a referência da tabela
-
   try {
-    // 1. Buscas Iniciais e Preparação
-    const [scorecard, profileChunks] = await Promise.all([
-        findScorecardById(scorecardId),
-        chunkProfile(profileData)
-    ]);
-
+    const scorecard = await findScorecardById(scorecardId);
     if (!scorecard) throw new Error('Scorecard não encontrado.');
-    if (profileChunks.length === 0) throw new Error('O perfil não contém texto analisável.');
+    if (!profileData) throw new Error('Dados do perfil não fornecidos.');
     
-    const profileEmbeddings = await createEmbeddings(profileChunks);
-    
-    // 2. Criação e População da Tabela Temporária no LanceDB
-    const profileDataForLance = profileEmbeddings.map((vector, i) => ({
-      vector,
-      text: profileChunks[i] // Armazena o texto junto com o vetor
-    }));
-    profileTable = await createProfileVectorTable(tempTableName, profileDataForLance);
+    // --- ETAPA 1: CACHE DE EMBEDDINGS DO PERFIL ---
+    const profileHash = createProfileHash(profileData);
+    const embeddingsCacheKey = `embeddings_${profileHash}`;
+    let profileEmbeddings = await getRawProfile(embeddingsCacheKey);
+    let profileChunks;
 
-    // 3. Análise Focada (Busca Vetorial + IA)
-    const categoryResults = [];
-    let totalWeightedScore = 0;
-    let totalWeight = 0;
-
-    for (const category of scorecard.categories) {
-      const analysisPromises = (category.criteria || []).map(async (criterion) => {
-        if (!criterion.embedding) {
-          logError(`Critério "${criterion.name}" não possui embedding. Pulando.`);
-          return null;
-        }
+    if (profileEmbeddings) {
+        log(`CACHE HIT: Embeddings do perfil encontrados no cache.`);
+        profileChunks = chunkProfile(profileData); // Chunks ainda precisam ser gerados
+    } else {
+        log(`CACHE MISS: Embeddings do perfil não encontrados. Gerando e salvando...`);
+        profileChunks = chunkProfile(profileData);
+        if (profileChunks.length === 0) throw new Error('Perfil não contém texto analisável.');
         
-        // Etapa A: Busca vetorial na tabela temporária do perfil
-        const searchResults = await profileTable.search(criterion.embedding)
-            .limit(3) // Busca os 3 chunks mais relevantes
-            .select(['text']) // Pede para o LanceDB retornar o campo de texto
-            .execute();
-
-        // Etapa B: Extrai o texto diretamente do resultado
-        const relevantChunks = searchResults.map(result => result.text);
-        const uniqueRelevantChunks = [...new Set(relevantChunks)];
-
-        // Etapa C: Análise de IA focada
-        const evaluation = await analyzeCriterionWithAI(criterion, uniqueRelevantChunks);
-        return { evaluation, weight: criterion.weight };
-      });
-
-      const resolvedEvaluations = await Promise.all(analysisPromises);
-      
-      let categoryWeightedScore = 0;
-      let categoryTotalWeight = 0;
-      const criteriaEvaluations = [];
-
-      resolvedEvaluations.forEach(result => {
-        if (result) {
-            criteriaEvaluations.push(result.evaluation);
-            categoryWeightedScore += result.evaluation.score * result.weight;
-            categoryTotalWeight += 5 * result.weight;
-        }
-      });
-      
-      const categoryScore = categoryTotalWeight > 0 ? Math.round((categoryWeightedScore / categoryTotalWeight) * 100) : 0;
-      totalWeightedScore += categoryWeightedScore;
-      totalWeight += categoryTotalWeight;
-      
-      categoryResults.push({ name: category.name, score: categoryScore, criteria: criteriaEvaluations });
+        profileEmbeddings = await createEmbeddings(profileChunks);
+        await saveRawProfile(embeddingsCacheKey, profileEmbeddings); // Salva no cache para a próxima vez
     }
 
-    // 4. Consolidação do Resultado
-    const overallScore = totalWeight > 0 ? Math.round((totalWeightedScore / totalWeight) * 100) : 0;
-    const result = {
-        overallScore,
-        profileName: profileData.name,
-        profileHeadline: profileData.headline,
-        categories: categoryResults
-    };
+    // --- ETAPA 2: MAPEAMENTO DE EVIDÊNCIAS (BUSCA VETORIAL) ---
+    const evidenceMap = new Map();
+    const searchPromises = profileEmbeddings.map(async (profileVector, index) => {
+        const profileChunkText = profileChunks[index];
+        const searchResults = await searchSimilarVectors(profileVector, 2);
+        
+        searchResults.forEach(result => {
+            const criterionId = result.uuid;
+            if (!evidenceMap.has(criterionId)) {
+                evidenceMap.set(criterionId, new Set()); // Usa um Set para evitar duplicatas
+            }
+            evidenceMap.get(criterionId).add(profileChunkText);
+        });
+    });
+    await Promise.all(searchPromises);
+
+    // Converte o mapa de Sets para um mapa de Arrays
+    const finalEvidenceMap = new Map();
+    scorecard.categories.forEach(cat => {
+        (cat.criteria || []).forEach(crit => {
+            const evidences = evidenceMap.get(crit.id);
+            finalEvidenceMap.set(crit.name, evidences ? Array.from(evidences) : []);
+        });
+    });
+
+    // --- ETAPA 3: ANÁLISE "SINGLE-SHOT" COM EVIDÊNCIAS ---
+    const result = await analyzeWithPreFilteredEvidence(scorecard, finalEvidenceMap);
+
     const duration = Date.now() - startTime;
-    log(`Análise com tabela temporária concluída em ${duration}ms. Score: ${overallScore}%`);
+    log(`Análise ULTRA-OTIMIZADA concluída em ${duration}ms. Score: ${result.overallScore}%`);
     
-    return result;
+    return {
+        ...result,
+        profileName: profileData.name,
+        profileHeadline: profileData.headline
+    };
 
   } catch (err) {
-    logError('Erro durante a análise de match com tabela temporária:', err.message);
+    logError('Erro durante a análise ULTRA-OTIMIZADA:', err.message);
     throw err;
-  } finally {
-    // 5. Limpeza (SEMPRE executa, mesmo se houver erro)
-    if (profileTable) {
-        await dropProfileVectorTable(tempTableName);
-    }
   }
 };
