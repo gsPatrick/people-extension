@@ -3,7 +3,6 @@
 import { findById as findScorecardById } from './scorecard.service.js';
 import { createEmbeddings } from './embedding.service.js';
 import { analyzeCriterionWithAI } from './ai.service.js';
-// <-- MUDANÇA: Importamos as novas funções de gerenciamento de tabelas
 import { createProfileVectorTable, dropProfileVectorTable } from './vector.service.js';
 import { log, error as logError } from '../utils/logger.service.js';
 
@@ -22,32 +21,38 @@ const chunkProfile = (profileData) => {
 
 export const analyze = async (scorecardId, profileData) => {
   const startTime = Date.now();
-  // Cria um nome de tabela único para esta requisição específica
-  const tempTableName = `profile_${Date.now()}`;
+  const tempTableName = `profile_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   log(`Iniciando análise com tabela temporária '${tempTableName}'`);
   
-  let profileTable; // Variável para manter a referência da tabela
+  let profileTable;
 
   try {
-    // 1. Buscas Iniciais e Preparação
-    const [scorecard, profileChunks] = await Promise.all([
-        findScorecardById(scorecardId),
-        chunkProfile(profileData)
-    ]);
+    // --- FLUXO LINEAR E SEGURO ---
 
-    if (!scorecard) throw new Error('Scorecard não encontrado.');
-    if (profileChunks.length === 0) throw new Error('O perfil não contém texto analisável.');
+    // 1. Busca o Scorecard primeiro. É rápido e essencial para o resto.
+    const scorecard = await findScorecardById(scorecardId);
+    if (!scorecard) {
+      // Se não encontrar aqui, lança o erro imediatamente.
+      throw new Error('Scorecard não encontrado.');
+    }
+
+    // 2. Prepara os dados do perfil.
+    const profileChunks = chunkProfile(profileData);
+    if (profileChunks.length === 0) {
+      throw new Error('O perfil não contém texto analisável.');
+    }
     
+    // 3. Gera os embeddings (a parte mais demorada).
     const profileEmbeddings = await createEmbeddings(profileChunks);
     
-    // 2. Criação e População da Tabela Temporária no LanceDB
+    // 4. Cria e popula a tabela temporária no LanceDB.
     const profileDataForLance = profileEmbeddings.map((vector, i) => ({
       vector,
-      text: profileChunks[i] // Armazena o texto junto com o vetor
+      text: profileChunks[i]
     }));
     profileTable = await createProfileVectorTable(tempTableName, profileDataForLance);
 
-    // 3. Análise Focada (Busca Vetorial + IA)
+    // 5. Análise Focada (Busca Vetorial + IA)
     const categoryResults = [];
     let totalWeightedScore = 0;
     let totalWeight = 0;
@@ -59,17 +64,13 @@ export const analyze = async (scorecardId, profileData) => {
           return null;
         }
         
-        // Etapa A: Busca vetorial na tabela temporária do perfil
         const searchResults = await profileTable.search(criterion.embedding)
-            .limit(3) // Busca os 3 chunks mais relevantes
-            .select(['text']) // Pede para o LanceDB retornar o campo de texto
+            .limit(3)
+            .select(['text'])
             .execute();
 
-        // Etapa B: Extrai o texto diretamente do resultado
-        const relevantChunks = searchResults.map(result => result.text);
-        const uniqueRelevantChunks = [...new Set(relevantChunks)];
+        const uniqueRelevantChunks = [...new Set(searchResults.map(result => result.text))];
 
-        // Etapa C: Análise de IA focada
         const evaluation = await analyzeCriterionWithAI(criterion, uniqueRelevantChunks);
         return { evaluation, weight: criterion.weight };
       });
@@ -95,7 +96,7 @@ export const analyze = async (scorecardId, profileData) => {
       categoryResults.push({ name: category.name, score: categoryScore, criteria: criteriaEvaluations });
     }
 
-    // 4. Consolidação do Resultado
+    // 6. Consolidação do Resultado
     const overallScore = totalWeight > 0 ? Math.round((totalWeightedScore / totalWeight) * 100) : 0;
     const result = {
         overallScore,
@@ -109,10 +110,13 @@ export const analyze = async (scorecardId, profileData) => {
     return result;
 
   } catch (err) {
-    logError('Erro durante a análise de match com tabela temporária:', err.message);
-    throw err;
+    // Adiciona mais contexto ao erro para facilitar o debug
+    logError(`Erro durante a análise para o scorecard ${scorecardId}:`, err.message);
+    const serviceError = new Error(err.message);
+    serviceError.statusCode = err.message === 'Scorecard não encontrado.' ? 404 : 500;
+    throw serviceError;
   } finally {
-    // 5. Limpeza (SEMPRE executa, mesmo se houver erro)
+    // Limpeza da tabela temporária
     if (profileTable) {
         await dropProfileVectorTable(tempTableName);
     }
