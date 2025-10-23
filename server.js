@@ -11,7 +11,7 @@ import { memoryStorageAdapter } from './src/Platform/Storage/memoryStorage.adapt
 import { initializeSessionService } from './src/Core/session.service.js';
 import { initializeAuthStorage } from './src/Inhire/Auth/authStorage.service.js';
 import { performLogin } from './src/Core/Auth-Flow/authOrchestrator.js';
-import { sequelize } from './src/models/index.js';
+import { sequelize } from './src/models/index.js'; // <-- MUDANÇA: Agora importa a instância já configurada
 import { syncEntityCache } from './src/utils/sync.service.js';
 import { fetchAllJobsWithDetails } from './src/Core/Job-Flow/jobOrchestrator.js';
 import { fetchAllTalentsForSync, fetchCandidatesForJob } from './src/Core/management-flow/managementOrchestrator.js'; 
@@ -19,8 +19,7 @@ import { getFromCache } from './src/utils/cache.service.js';
 import { createUser, findUserByEmail } from './src/Core/User-Flow/userService.js';
 import apiRoutes from './src/routes/apiRoutes.js';
 import cors from 'cors';
-import { initializeVectorDB } from './src/services/vector.service.js';
-import { initializeCache } from './src/Platform/Storage/localCache.service.js'; // <-- Importação necessária
+import { initializeVectorDB } from './src/services/vector.service.js'; // <-- 1. IMPORTE O NOVO SERVIÇO
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,9 +34,12 @@ const TALENTS_CACHE_KEY = 'all_talents';
 export const initializeDatabase = async () => {
     log('--- INICIALIZAÇÃO DO BANCO DE DADOS (PostgreSQL + Sequelize) ---');
     try {
+        // Testa a conexão
         await sequelize.authenticate();
         log('✅ Conexão com o PostgreSQL estabelecida com sucesso.');
         
+        // Sincroniza os modelos. `force: true` apaga e recria as tabelas.
+        // CUIDADO: Isso apaga todos os dados em cada reinicialização.
         log('Sincronizando models com o banco de dados (force: true)...');
         await sequelize.sync({ force: true });
         log('✅ Models sincronizados com sucesso (tabelas recriadas).');
@@ -51,9 +53,11 @@ export const initializeDatabase = async () => {
     }
 };
 
+// --- Funções de sincronização (sem alterações) ---
 const syncJobs = () => syncEntityCache(JOBS_CACHE_KEY, fetchAllJobsWithDetails);
 const syncTalents = () => syncEntityCache(TALENTS_CACHE_KEY, fetchAllTalentsForSync);
 
+// --- Pré-carregamento de candidatos (sem alterações) ---
 const prefetchAllCandidates = async () => {
     log('--- PREFETCH WORKER: Iniciando pré-carregamento de candidatos InHire ---');
     const allJobs = getFromCache(JOBS_CACHE_KEY);
@@ -71,6 +75,7 @@ const prefetchAllCandidates = async () => {
     log('--- PREFETCH WORKER: Pré-carregamento concluído. ---');
 };
 
+// --- Criação do usuário admin (sem alterações) ---
 const seedAdminUser = async () => {
     const adminEmail = 'admin@admin.com';
     const existingAdmin = await findUserByEmail(adminEmail);
@@ -93,6 +98,7 @@ const seedAdminUser = async () => {
     }
 };
 
+// --- Inicialização do servidor ---
 const startServer = async () => {
     const app = express();
 
@@ -103,10 +109,10 @@ const startServer = async () => {
     app.use(express.static(path.join(__dirname, 'public')));
     log('--- INICIALIZAÇÃO DO SERVIDOR ---');
 
-    // Inicializa os bancos de dados na ordem correta
-    await initializeDatabase(); // PostgreSQL
-    await initializeVectorDB(); // LanceDB
-    initializeCache();          // SQLite Cache
+    // <-- MUDANÇA: A lógica de remoção de arquivo e VSS foi removida.
+    await initializeDatabase();
+    // <-- 2. ADICIONE A CHAMADA DE INICIALIZAÇÃO DO LANCEDB AQUI
+    await initializeVectorDB(); 
 
     initializeSessionService(memoryStorageAdapter);
     initializeAuthStorage(memoryStorageAdapter);
