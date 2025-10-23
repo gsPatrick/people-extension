@@ -2,9 +2,9 @@
 
 import { findById as findScorecardById } from './scorecard.service.js';
 import { createEmbeddings } from './embedding.service.js';
-import { analyzeWithPreFilteredEvidence } from './ai.service.js'; // <-- MUDANÇA: Usaremos uma nova função de IA
+import { analyzeWithPreFilteredEvidence } from './ai.service.js';
 import { searchSimilarVectors } from './vector.service.js';
-import { getRawProfile, saveRawProfile } from '../Platform/Storage/localCache.service.js';
+import { getGenericCache, setGenericCache } from '../Platform/Storage/localCache.service.js';
 import { log, error as logError } from '../utils/logger.service.js';
 import crypto from 'crypto';
 
@@ -13,6 +13,8 @@ const createProfileHash = (profileData) => {
     const profileString = JSON.stringify(profileData);
     return crypto.createHash('sha256').update(profileString).digest('hex');
 };
+
+// Helper para dividir o perfil em pedaços de texto (chunks)
 const chunkProfile = (profileData) => {
   const chunks = [];
   if (profileData.headline) chunks.push(`Título: ${profileData.headline}`);
@@ -38,7 +40,7 @@ export const analyze = async (scorecardId, profileData) => {
     // --- ETAPA 1: CACHE DE EMBEDDINGS DO PERFIL ---
     const profileHash = createProfileHash(profileData);
     const embeddingsCacheKey = `embeddings_${profileHash}`;
-    let profileEmbeddings = await getRawProfile(embeddingsCacheKey);
+    let profileEmbeddings = await getGenericCache(embeddingsCacheKey);
     let profileChunks;
 
     if (profileEmbeddings) {
@@ -50,7 +52,7 @@ export const analyze = async (scorecardId, profileData) => {
         if (profileChunks.length === 0) throw new Error('Perfil não contém texto analisável.');
         
         profileEmbeddings = await createEmbeddings(profileChunks);
-        await saveRawProfile(embeddingsCacheKey, profileEmbeddings); // Salva no cache para a próxima vez
+        await setGenericCache(embeddingsCacheKey, profileEmbeddings); // Salva no cache para a próxima vez
     }
 
     // --- ETAPA 2: MAPEAMENTO DE EVIDÊNCIAS (BUSCA VETORIAL) ---
@@ -69,7 +71,7 @@ export const analyze = async (scorecardId, profileData) => {
     });
     await Promise.all(searchPromises);
 
-    // Converte o mapa de Sets para um mapa de Arrays
+    // Converte o mapa de Sets para um mapa de Arrays, associando pelo nome do critério
     const finalEvidenceMap = new Map();
     scorecard.categories.forEach(cat => {
         (cat.criteria || []).forEach(crit => {
@@ -91,7 +93,12 @@ export const analyze = async (scorecardId, profileData) => {
     };
 
   } catch (err) {
-    logError('Erro durante a análise ULTRA-OTIMIZADA:', err.message);
-    throw err;
+    // Log aprimorado para capturar qualquer tipo de erro
+    logError('Erro durante a análise ULTRA-OTIMIZADA:', err);
+    
+    // Cria um novo erro com uma mensagem clara, preservando a causa original.
+    const newError = new Error(err.message || 'Ocorreu um erro indefinido durante a análise de match.');
+    newError.stack = err.stack; // Preserva o stack trace
+    throw newError;
   }
 };
