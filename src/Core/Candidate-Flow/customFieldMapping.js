@@ -1,43 +1,22 @@
-// src/Core/Candidate-Flow/customFieldMapping.js
+// ARQUIVO FINAL E COMPLETO: src/Core/Candidate-Flow/customFieldMapping.js
 
 import { getGenderByName } from '../../utils/gender.service.js';
-
-// ===================================================================
-// CONSTANTES DE MAPEAMENTO PARA CAMPOS 'SELECT' DA INHIRE
-// TODO: Verifique e confirme se estes IDs estão corretos no seu ambiente InHire.
-// ===================================================================
-
-const GENDER_OPTIONS = {
-    MALE:   { id: 'f054fecc-a8f5-4402-8bc5-996fc61cd7dd', value: 'Masculino', label: 'Masculino' },
-    FEMALE: { id: 'ID_FEMININO_AQUI', value: 'Feminino', label: 'Feminino' } // <<< SUBSTITUIR ID
-};
-
-const HIERARCHICAL_LEVEL_OPTIONS = {
-    ANALISTA:      { id: 'f966cf11-b515-4cd2-9474-c15a1653baa3', value: 'Analista', label: 'Analista' },
-    ESPECIALISTA:  { id: 'ID_ESPECIALISTA_AQUI', value: 'Especialista', label: 'Especialista' }, // <<< SUBSTITUIR ID
-    GERENTE:       { id: 'ID_GERENTE_AQUI', value: 'Gerente', label: 'Gerente' }, // <<< SUBSTITUIR ID
-    DIRETOR:       { id: 'ID_DIRETOR_AQUI', value: 'Diretor', label: 'Diretor' }, // <<< SUBSTITUIR ID
-    C_LEVEL:       { id: 'ID_C_LEVEL_AQUI', value: 'C-Level', label: 'C-Level' }, // <<< SUBSTITUIR ID
-    ESTAGIARIO:    { id: 'ID_ESTAGIARIO_AQUI', value: 'Estagiário', label: 'Estagiário' } // <<< SUBSTITUIR ID
-};
 
 // ===================================================================
 // FUNÇÕES AUXILIARES DE TRANSFORMAÇÃO
 // ===================================================================
 
 /**
- * Extrai o nome do estado de uma string de localização (ex: "Redmond, Washington, USA").
+ * Extrai o nome do estado de uma string de localização (ex: "São Paulo, São Paulo, Brasil").
  * @param {string} locationString - A localização completa.
- * @returns {string} O estado ou a string original se o padrão não for encontrado.
+ * @returns {string|null} O estado ou null se não puder ser extraído.
  */
 function extractStateFromLocation(locationString) {
-    if (!locationString) return "";
+    if (!locationString) return null;
     const parts = locationString.split(',').map(p => p.trim());
+    // Ex: "São Paulo, São Paulo, Brasil" -> parts[1] é "São Paulo"
     if (parts.length >= 2) {
-        // Assume que o estado é a penúltima parte se houver país, ou a última se não houver.
-        // Ex: "Redmond, Washington, United States" -> parts[1] é "Washington"
-        // Ex: "São Paulo, SP" -> parts[1] é "SP"
-        return parts.length > 2 ? parts[1] : parts[parts.length -1];
+        return parts[1];
     }
     return locationString; // Retorna a string original como fallback
 }
@@ -45,90 +24,122 @@ function extractStateFromLocation(locationString) {
 /**
  * Mapeia um título de cargo para um nível hierárquico pré-definido.
  * @param {string} jobTitle - O título do cargo vindo do LinkedIn.
+ * @param {Array<object>} fieldOptions - As opções disponíveis no campo 'select' da InHire.
  * @returns {object|null} O objeto de opção da InHire ou null.
  */
-function mapJobTitleToLevel(jobTitle) {
-    if (!jobTitle) return null;
+function mapJobTitleToLevel(jobTitle, fieldOptions) {
+    if (!jobTitle || !Array.isArray(fieldOptions)) return null;
     const title = jobTitle.toLowerCase();
 
-    if (title.includes('ceo') || title.includes('chairman') || title.includes('c-level') || title.includes('chief officer')) return HIERARCHICAL_LEVEL_OPTIONS.C_LEVEL;
-    if (title.includes('director') || title.includes('diretor') || title.includes('head of')) return HIERARCHICAL_LEVEL_OPTIONS.DIRETOR;
-    if (title.includes('manager') || title.includes('gerente') || title.includes('coordenador')) return HIERARCHICAL_LEVEL_OPTIONS.GERENTE;
-    if (title.includes('specialist') || title.includes('especialista') || title.includes('sr.') || title.includes('sênior')) return HIERARCHICAL_LEVEL_OPTIONS.ESPECIALISTA;
-    if (title.includes('analyst') || title.includes('analista')) return HIERARCHICAL_LEVEL_OPTIONS.ANALISTA;
-    if (title.includes('intern') || title.includes('estagiário')) return HIERARCHICAL_LEVEL_OPTIONS.ESTAGIARIO;
+    // Mapeia da posição mais alta para a mais baixa para evitar falsos positivos
+    if (title.includes('ceo') || title.includes('cto') || title.includes('c-level') || title.includes('chief') || title.includes('founder') || title.includes('fundador')) return fieldOptions.find(o => o.value?.toLowerCase().includes('c-level'));
+    if (title.includes('director') || title.includes('diretor') || title.includes('head of')) return fieldOptions.find(o => o.value?.toLowerCase().includes('diretor'));
+    if (title.includes('manager') || title.includes('gerente') || title.includes('coordenador')) return fieldOptions.find(o => o.value?.toLowerCase().includes('gerente'));
+    if (title.includes('specialist') || title.includes('especialista') || title.includes('sr.') || title.includes('sênior')) return fieldOptions.find(o => o.value?.toLowerCase().includes('especialista'));
+    if (title.includes('analyst') || title.includes('analista')) return fieldOptions.find(o => o.value?.toLowerCase().includes('analista'));
+    if (title.includes('intern') || title.includes('estagiário')) return fieldOptions.find(o => o.value?.toLowerCase().includes('estagiário'));
     
-    return null; // Nenhum nível correspondente encontrado
+    return null;
+}
+
+/**
+ * Formata o histórico de carreira a partir do array de experiências.
+ * @param {Array<object>} experienceArray - O array de experiências do scraper.
+ * @returns {string|null} Uma string formatada ou null.
+ */
+function formatCareerHistory(experienceArray) {
+    if (!Array.isArray(experienceArray) || experienceArray.length === 0) return null;
+    return experienceArray
+        .map(exp => `${exp.title} na ${exp.companyName} (${exp.dateRange || 'N/D'})`)
+        .join('\n');
+}
+
+/**
+ * Formata o histórico de educação.
+ * @param {Array<object>} educationArray - O array de educação do scraper.
+ * @returns {string|null} Uma string formatada ou null.
+ */
+function formatEducationHistory(educationArray) {
+    if (!Array.isArray(educationArray) || educationArray.length === 0) return null;
+    return educationArray
+        .map(edu => `${edu.degree || 'Formação'} em ${edu.schoolName} (${edu.dateRange || 'N/D'})`)
+        .join('; ');
 }
 
 // ===================================================================
-// MAPA PRINCIPAL DE TRANSFORMAÇÃO
-// Chave: ID do campo personalizado da InHire.
-// Valor: Objeto com o tipo e uma função `transform` que processa os dados do scraping.
-// A função `transform` recebe o objeto `talentData` completo e deve retornar o valor final.
+// MAPEADOR PRINCIPAL
 // ===================================================================
 
-export const STATIC_FIELD_MAPPING = {
-    '01': { // Empresa Atual
-        type: 'text',
-        transform: (data) => data.companyName || ""
-    },
-    '03': { // Sexo
-        type: 'select',
-        transform: async (data) => {
-            const gender = await getGenderByName(data.firstName);
-            if (gender === 'male') return GENDER_OPTIONS.MALE;
-            if (gender === 'female') return GENDER_OPTIONS.FEMALE;
-            return null; // Retorna null se não conseguir inferir
-        }
-    },
-    '13': { // Universidade de Graduação
-        type: 'text',
-        transform: (data) => data.linkedinSchoolName || ""
-    },
-    '14': { // Complemento de formação (pós, mestrado, outros)
-        type: 'text',
-        transform: (data) => {
-            // Concatena a formação anterior se existir
-            const parts = [];
-            if (data.linkedinPreviousSchoolName) {
-                let degree = data.linkedinPreviousSchoolDegree ? ` - ${data.linkedinPreviousSchoolDegree}` : '';
-                parts.push(`${data.linkedinPreviousSchoolName}${degree}`);
+/**
+ * Função central que mapeia os dados do scraping para os payloads da API da InHire.
+ * @param {object} scrapedData - Os dados brutos do LinkedIn.
+ * @param {Array<object>} customFieldDefinitions - As definições dos campos vindas da API InHire.
+ * @returns {Promise<{talentPayload: object, customFieldsPayload: Array<object>}>} Payloads prontos para a API.
+ */
+export const mapProfileToInhirePayloads = async (scrapedData, customFieldDefinitions) => {
+    
+    // --- 1. Payload para os campos GERAIS do talento ---
+    const talentPayload = {
+        name: scrapedData.name,
+        headline: scrapedData.headline,
+        linkedinUsername: scrapedData.linkedinUsername,
+        location: scrapedData.location,
+        // Pega a empresa da primeira experiência listada, que é a mais recente
+        company: scrapedData.experience?.[0]?.companyName || null, 
+    };
+
+    // --- 2. Payload para os CAMPOS PERSONALIZADOS da candidatura ---
+    const customFieldsPayload = [];
+
+    for (const field of customFieldDefinitions) {
+        let value = null;
+        const fieldName = field.name.toLowerCase();
+        const firstName = scrapedData.name ? scrapedData.name.split(' ')[0] : null;
+
+        // Lógica de mapeamento baseada no nome do campo (case-insensitive)
+        if (fieldName.includes('empresa atual')) {
+            value = talentPayload.company; // Usa o mesmo valor já definido
+        } else if (fieldName.includes('sexo')) {
+            const genderOptions = field.answerOptions || [];
+            if (firstName) {
+                const gender = await getGenderByName(firstName);
+                if (gender === 'male') value = genderOptions.find(o => o.value?.toLowerCase().includes('masculino'));
+                if (gender === 'female') value = genderOptions.find(o => o.value?.toLowerCase().includes('feminino'));
             }
-            return parts.join('; ');
-        }
-    },
-    // '15': { // Outro Idioma - O scraping atual não fornece essa informação
-    //     type: 'text',
-    //     transform: (data) => data.languages ? data.languages.join(', ') : ""
-    // },
-    '18': { // Cargo
-        type: 'text',
-        transform: (data) => data.linkedinJobTitle || ""
-    },
-    '19': { // Nível Hierárquico
-        type: 'select',
-        transform: (data) => mapJobTitleToLevel(data.linkedinJobTitle)
-    },
-    '22': { // Estado (UF)
-        type: 'text',
-        transform: (data) => extractStateFromLocation(data.location)
-    },
-    '23': { // Carreira
-        type: 'text',
-        transform: (data) => {
-            const history = [];
-            if (data.linkedinJobTitle && data.companyName) {
-                history.push(`Atual: ${data.linkedinJobTitle} em ${data.companyName} (${data.linkedinJobDateRange || 'N/D'})`);
+        } else if (fieldName.includes('universidade') || (fieldName.includes('formação') && !fieldName.includes('complemento'))) {
+            // Pega o nome da primeira instituição de ensino
+            value = scrapedData.education?.[0]?.schoolName || null;
+        } else if (fieldName.includes('complemento de formação')) {
+            value = formatEducationHistory(scrapedData.education);
+        } else if (fieldName.includes('cargo')) {
+            value = scrapedData.experience?.[0]?.title || null;
+        } else if (fieldName.includes('nível hierárquico')) {
+            const currentJobTitle = scrapedData.experience?.[0]?.title || null;
+            value = mapJobTitleToLevel(currentJobTitle, field.answerOptions);
+        } else if (fieldName.includes('estado') || fieldName.includes('uf')) {
+            value = extractStateFromLocation(scrapedData.location);
+        } else if (fieldName.includes('carreira') || fieldName.includes('experiência')) {
+            value = formatCareerHistory(scrapedData.experience);
+        } else if (fieldName.includes('competências') || fieldName.includes('skills')) {
+            if (Array.isArray(scrapedData.skills) && scrapedData.skills.length > 0) {
+                value = scrapedData.skills.map(skill => skill.name).join(', ');
             }
-            if (data.linkedinPreviousJobTitle && data.previousCompanyName) {
-                history.push(`Anterior: ${data.linkedinPreviousJobTitle} em ${data.previousCompanyName} (${data.linkedinPreviousJobDateRange || 'N/D'})`);
+        } else if (fieldName.includes('idiomas')) {
+            if (Array.isArray(scrapedData.languages) && scrapedData.languages.length > 0) {
+                value = scrapedData.languages.map(lang => lang.language).join(', ');
             }
-            return history.join('\n'); // Usa nova linha para separar
         }
-    },
-    // '24': { // Certificações - O scraping atual não fornece essa informação
-    //     type: 'text',
-    //     transform: (data) => data.certifications ? data.certifications.join(', ') : ""
-    // },
+
+        // Adiciona ao payload final se um valor foi encontrado e é válido
+        if (value !== null && value !== undefined && value !== '') {
+            customFieldsPayload.push({
+                id: field.id,
+                name: field.name,
+                type: field.type,
+                value: value
+            });
+        }
+    }
+
+    return { talentPayload, customFieldsPayload };
 };
