@@ -1,8 +1,8 @@
-// src/Core/Evaluation-Flow/evaluationOrchestrator.js
+// ARQUIVO COMPLETO E CORRIGIDO: src/Core/Evaluation-Flow/evaluationOrchestrator.js
 
 import { htmlToText } from 'html-to-text';
 import { getInterviewKitsForJob, submitScorecardResponse, getScorecardSummaryForApplication, createJobScorecard, createInterviewKit, getInterviewKitById } from '../../Inhire/ScoreCards/scorecards.service.js';
-import { getWeightsForKit, saveWeightsForKit } from './weights.service.js'; // <<< NOVA IMPORTAÇÃO
+import { getWeightsForKit, saveWeightsForKit } from './weights.service.js';
 import { log, error } from '../../utils/logger.service.js';
 import { saveDebugDataToFile } from '../../utils/debug.service.js';
 
@@ -116,25 +116,40 @@ export const handleScorecardSubmission = async (applicationId, scorecardId, eval
       if (!kitStructure) {
           throw new Error("Não foi possível encontrar a estrutura do kit para formatar o payload.");
       }
+
+      // ==========================================================
+      // CORREÇÃO DE ROBUSTEZ APLICADA AQUI
+      // ==========================================================
       const payloadForInHire = {
           feedback: {
               comment: evaluationDataFromFrontend.feedback || '',
-              proceed: evaluationDataFromFrontend.decision || 'NO_DECISION'
+              // Garante que a decisão seja um valor válido, com um fallback seguro.
+              proceed: ['YES', 'NO', 'NO_DECISION'].includes(evaluationDataFromFrontend.decision) 
+                       ? evaluationDataFromFrontend.decision 
+                       : 'NO_DECISION'
           },
           privateNotes: evaluationDataFromFrontend.notes || '',
-          skillCategories: kitStructure.skillCategories.map(category => ({
+          skillCategories: (kitStructure.skillCategories || []).map(category => ({
               name: category.name,
-              skills: category.skills.map(skill => {
-                   const ratingData = evaluationDataFromFrontend.ratings[skill.id] || {};
+              // Garante que 'skills' seja um array antes de mapear
+              skills: (category.skills || []).map(skill => {
+                   // Garante que 'ratings' exista e que 'skill.id' seja válido
+                   const ratingData = evaluationDataFromFrontend.ratings && skill.id
+                                      ? evaluationDataFromFrontend.ratings[skill.id]
+                                      : null; // Se não houver dados, ratingData é nulo
+                   
                    return {
                       name: skill.name,
-                      score: ratingData.score || 0,
-                      description: ratingData.description || ''
+                      // Acessa 'score' e 'description' de forma segura, com fallbacks
+                      score: ratingData?.score || 0,
+                      description: ratingData?.description || ''
                    };
               })
           }))
       };
+
       saveDebugDataToFile( `submission_payload_${applicationId}_${Date.now()}.txt`, { fromFrontend: evaluationDataFromFrontend, sentToInHire: payloadForInHire });
+      
       const submissionResult = await submitScorecardResponse(applicationId, scorecardId, payloadForInHire);
       if (!submissionResult) {
         throw new Error("Falha ao submeter avaliação. A API da InHire não retornou sucesso.");
@@ -142,6 +157,8 @@ export const handleScorecardSubmission = async (applicationId, scorecardId, eval
       return { success: true, submission: submissionResult };
     } catch (err) {
       error("Erro em handleScorecardSubmission:", err.message);
+      // Inclui o stack trace no erro para melhor depuração no backend
+      error("Stack Trace:", err.stack);
       return { success: false, error: err.message };
     }
 };
@@ -195,11 +212,9 @@ export const fetchInterviewKitDetails = async (kitId) => {
             throw new Error(`Kit de entrevista com ID ${kitId} não encontrado.`);
         }
         
-        // Aplica as transformações para garantir a consistência dos dados
         const enrichedKit = enrichKitDataWithIds(kit);
         const cleanedKit = cleanHtmlScript(enrichedKit);
         
-        // <<< MODIFICAÇÃO: Busca os pesos e anexa ao objeto do kit >>>
         const weights = await getWeightsForKit(kitId);
         const finalKit = { ...cleanedKit, weights };
 
@@ -211,15 +226,6 @@ export const fetchInterviewKitDetails = async (kitId) => {
     }
 };
 
-/* ========================================================== */
-/* NOVA FUNÇÃO PARA SALVAR OS PESOS                           */
-/* ========================================================== */
-/**
- * Orquestra o salvamento dos pesos de um kit de entrevista.
- * @param {string} kitId - O ID do kit de entrevista.
- * @param {object} weightsData - O objeto com os pesos a serem salvos.
- * @returns {Promise<{success: boolean, error?: string}>}
- */
 export const handleSaveKitWeights = async (kitId, weightsData) => {
     log(`--- ORQUESTRADOR: Salvando pesos para o kit ${kitId} ---`);
     try {
