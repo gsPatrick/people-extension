@@ -1,9 +1,9 @@
-// src/Inhire/inhireCore.js
+// ARQUIVO ATUALIZADO: src/Inhire/inhireCore.js
 
 import axios from 'axios';
 import { getTokens, saveTokens } from './Auth/authStorage.service.js';
 import { refreshInhireToken } from './Auth/auth.service.js';
-import { log, error } from '../utils/logger.service.js'; // MODIFICADO: Importar o logger
+import { log, error } from '../utils/logger.service.js';
 
 const inhireCore = axios.create({});
 
@@ -12,7 +12,6 @@ inhireCore.interceptors.request.use(
   async (config) => {
     const { accessToken } = await getTokens();
     
-    // Verifique se TENANT_ID é undefined ou null aqui
     if (!process.env.INHIRE_TENANT) {
       log("AVISO: Variável de ambiente INHIRE_TENANT não definida!");
     }
@@ -21,14 +20,21 @@ inhireCore.interceptors.request.use(
 
     if (accessToken) {
       config.headers['Authorization'] = `Bearer ${accessToken}`;
-      log(`DEBUG REQ INTERCEPTOR: Enviando para ${config.url} - X-Tenant: ${config.headers['X-Tenant']}, Authorization: Bearer <token_present> (length: ${accessToken.length})`); // MODIFICADO: Log mais detalhado
+      
+      // ==========================================================
+      // MUDANÇA PRINCIPAL: Comente a linha abaixo para silenciar
+      // os logs de requisição que estão poluindo o console.
+      // ==========================================================
+      // log(`DEBUG REQ INTERCEPTOR: Enviando para ${config.url} - X-Tenant: ${config.headers['X-Tenant']}, Authorization: Bearer <token_present> (length: ${accessToken.length})`);
+
     } else {
-      log(`DEBUG REQ INTERCEPTOR: Enviando para ${config.url} - X-Tenant: ${config.headers['X-Tenant']}, NENHUM accessToken presente.`); // MODIFICADO: Log de token ausente
+      // Este log pode ser útil, então o mantemos por enquanto.
+      log(`DEBUG REQ INTERCEPTOR: Enviando para ${config.url} - X-Tenant: ${config.headers['X-Tenant']}, NENHUM accessToken presente.`);
     }
     return config;
   },
-  (err) => { // MODIFICADO: Troquei 'error' por 'err'
-    error("Erro no interceptor de requisição:", err); // MODIFICADO: Usar error do logger
+  (err) => {
+    error("Erro no interceptor de requisição:", err);
     return Promise.reject(err);
   }
 );
@@ -36,10 +42,9 @@ inhireCore.interceptors.request.use(
 // Interceptor de Resposta (Refinado com logs)
 inhireCore.interceptors.response.use(
   (response) => response,
-  async (err) => { // MODIFICADO: Troquei 'error' por 'err'
+  async (err) => {
     const originalRequest = err.config;
     
-    // Log do erro 401
     if (err.response?.status === 401) {
       log(`DEBUG RESP INTERCEPTOR: 401 Não Autorizado para ${originalRequest.url}. Mensagem: ${err.response.data?.message || err.message}`);
     }
@@ -62,14 +67,11 @@ inhireCore.interceptors.response.use(
             return inhireCore(originalRequest);
           }
         } catch (refreshError) {
-          error("Falha crítica ao renovar o token. O usuário pode precisar fazer login novamente.", refreshError); // MODIFICADO: Usar error do logger
+          error("Falha crítica ao renovar o token. O usuário pode precisar fazer login novamente.", refreshError);
           return Promise.reject(refreshError);
         }
       } else {
         log("Nenhum refreshToken encontrado. Não é possível renovar o token.");
-        // Opcional: Lógica para limpar tokens e forçar logout
-        // clearTokens();
-        // window.location.reload();
       }
     }
     
