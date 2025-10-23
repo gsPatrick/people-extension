@@ -1,6 +1,8 @@
-// ARQUIVO COMPLETO, FINAL E CORRIGIDO: src/services/match.service.js
+// ARQUIVO COMPLETO E FINAL (COM BYPASS DE CACHE): src/services/match.service.js
 
-import { findById as findScorecardById } from './scorecard.service.js';
+// <-- MUDANÇA: Importamos o 'db' diretamente para acessar o model.
+import db from '../models/index.js';
+// import { findById as findScorecardById } from './scorecard.service.js'; // Não usaremos mais esta importação aqui.
 import { createEmbeddings } from './embedding.service.js';
 import { analyzeCriterionWithAI } from './ai.service.js';
 import { createProfileVectorTable, dropProfileVectorTable } from './vector.service.js';
@@ -19,6 +21,20 @@ const chunkProfile = (profileData) => {
   return chunks.filter(Boolean);
 };
 
+// Helper para ordenar em memória, copiado do scorecard.service para garantir consistência
+const sortChildrenInMemory = (data) => {
+    if (data.categories) {
+        data.categories.sort((a, b) => a.order - b.order);
+        data.categories.forEach(category => {
+            if (category.criteria) {
+                category.criteria.sort((a, b) => a.order - b.order);
+            } else {
+                category.criteria = [];
+            }
+        });
+    }
+};
+
 export const analyze = async (scorecardId, profileData) => {
   const startTime = Date.now();
   const tempTableName = `profile_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -27,32 +43,41 @@ export const analyze = async (scorecardId, profileData) => {
   let profileTable;
 
   try {
-    // --- FLUXO LINEAR E SEGURO ---
+    // --- MUDANÇA CRÍTICA: BUSCA DIRETA NO BANCO DE DADOS, IGNORANDO O CACHE ---
+    log(`Buscando scorecard ${scorecardId} diretamente no banco de dados (bypass de cache)...`);
+    const scorecardInstance = await db.Scorecard.findByPk(scorecardId, {
+      include: [
+        {
+          model: db.Category,
+          as: 'categories',
+          separate: true,
+          include: [{ model: db.Criterion, as: 'criteria' }],
+        },
+      ],
+    });
 
-    // 1. Busca o Scorecard primeiro. É rápido e essencial para o resto.
-    const scorecard = await findScorecardById(scorecardId);
-    if (!scorecard) {
-      // Se não encontrar aqui, lança o erro imediatamente.
+    if (!scorecardInstance) {
       throw new Error('Scorecard não encontrado.');
     }
+    
+    // Converte para objeto simples e ordena em memória, como no serviço original
+    const scorecard = scorecardInstance.get({ plain: true });
+    sortChildrenInMemory(scorecard);
+    // --- FIM DA MUDANÇA ---
 
-    // 2. Prepara os dados do perfil.
     const profileChunks = chunkProfile(profileData);
     if (profileChunks.length === 0) {
       throw new Error('O perfil não contém texto analisável.');
     }
     
-    // 3. Gera os embeddings (a parte mais demorada).
     const profileEmbeddings = await createEmbeddings(profileChunks);
     
-    // 4. Cria e popula a tabela temporária no LanceDB.
     const profileDataForLance = profileEmbeddings.map((vector, i) => ({
       vector,
       text: profileChunks[i]
     }));
     profileTable = await createProfileVectorTable(tempTableName, profileDataForLance);
 
-    // 5. Análise Focada (Busca Vetorial + IA)
     const categoryResults = [];
     let totalWeightedScore = 0;
     let totalWeight = 0;
@@ -96,7 +121,6 @@ export const analyze = async (scorecardId, profileData) => {
       categoryResults.push({ name: category.name, score: categoryScore, criteria: criteriaEvaluations });
     }
 
-    // 6. Consolidação do Resultado
     const overallScore = totalWeight > 0 ? Math.round((totalWeightedScore / totalWeight) * 100) : 0;
     const result = {
         overallScore,
@@ -110,13 +134,11 @@ export const analyze = async (scorecardId, profileData) => {
     return result;
 
   } catch (err) {
-    // Adiciona mais contexto ao erro para facilitar o debug
     logError(`Erro durante a análise para o scorecard ${scorecardId}:`, err.message);
     const serviceError = new Error(err.message);
     serviceError.statusCode = err.message === 'Scorecard não encontrado.' ? 404 : 500;
     throw serviceError;
   } finally {
-    // Limpeza da tabela temporária
     if (profileTable) {
         await dropProfileVectorTable(tempTableName);
     }
