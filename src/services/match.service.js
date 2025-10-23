@@ -1,16 +1,13 @@
-// ARQUIVO COMPLETO E FINAL: src/services/match.service.js
+// ARQUIVO ATUALIZADO: src/services/match.service.js
 
 import db from '../models/index.js';
 import { createEmbeddings } from './embedding.service.js';
 import { analyzeCriterionWithAI } from './ai.service.js';
 import { createProfileVectorTable, dropProfileVectorTable } from './vector.service.js';
 import { log, error as logError } from '../utils/logger.service.js';
+// <-- 1. IMPORTAÇÃO ADICIONADA
+import { findById as findScorecardById } from './scorecard.service.js';
 
-/**
- * Divide os dados textuais de um perfil em pedaços (chunks) para análise.
- * @param {object} profileData - Os dados do perfil.
- * @returns {string[]} Um array de strings, onde cada string é um chunk de texto.
- */
 const chunkProfile = (profileData) => {
   const chunks = [];
   if (profileData.headline) chunks.push(`Título: ${profileData.headline}`);
@@ -24,10 +21,7 @@ const chunkProfile = (profileData) => {
   return chunks.filter(Boolean);
 };
 
-/**
- * Função helper para ordenar os resultados em memória, em vez de na query SQL.
- * @param {object} data - O objeto scorecard ou categoria.
- */
+// Esta função helper continua útil, pois o objeto do cache pode não estar ordenado
 const sortChildrenInMemory = (data) => {
     if (data.categories) {
         data.categories.sort((a, b) => a.order - b.order);
@@ -41,49 +35,33 @@ const sortChildrenInMemory = (data) => {
     }
 };
 
-/**
- * Orquestra a análise de match. Esta função executa a lógica de negócio
- * e lança um erro em caso de falha, que deve ser capturado pelo controller.
- */
 export const analyze = async (scorecardId, profileData) => {
   const startTime = Date.now();
-  // Cria um nome de tabela único e aleatório para esta requisição.
   const tempTableName = `profile_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   log(`Iniciando análise com tabela temporária '${tempTableName}'`);
   
   let profileTable;
 
   try {
-    // 1. Busca Direta no Banco de Dados (Bypass de Cache)
-    log(`Buscando scorecard ${scorecardId} diretamente no banco de dados...`);
-    const scorecardInstance = await db.Scorecard.findByPk(scorecardId, {
-      include: [
-        {
-          model: db.Category,
-          as: 'categories',
-          separate: true,
-          include: [{ model: db.Criterion, as: 'criteria' }],
-        },
-      ],
-    });
+    // <-- 2. MUDANÇA PRINCIPAL: Busca via serviço de cache em vez de DB direto
+    log(`Buscando scorecard ${scorecardId} via serviço (com cache)...`);
+    const scorecard = await findScorecardById(scorecardId);
 
-    if (!scorecardInstance) {
+    if (!scorecard) {
       const err = new Error('Scorecard não encontrado.');
-      err.statusCode = 404; // Adiciona status code para o controller.
+      err.statusCode = 404;
       throw err;
     }
     
-    // Converte para objeto simples e ordena em memória.
-    const scorecard = scorecardInstance.get({ plain: true });
+    // A função findById já retorna um objeto simples e ordenado,
+    // mas uma re-ordenação aqui garante a consistência.
     sortChildrenInMemory(scorecard);
 
-    // 2. Preparação dos Dados do Perfil
     const profileChunks = chunkProfile(profileData);
     if (profileChunks.length === 0) {
       throw new Error('O perfil não contém texto analisável.');
     }
     
-    // 3. Geração de Embeddings e População da Tabela Temporária
     const profileEmbeddings = await createEmbeddings(profileChunks);
     const profileDataForLance = profileEmbeddings.map((vector, i) => ({
       vector,
@@ -91,7 +69,6 @@ export const analyze = async (scorecardId, profileData) => {
     }));
     profileTable = await createProfileVectorTable(tempTableName, profileDataForLance);
 
-    // 4. Análise Focada (Busca Vetorial + IA)
     const categoryResults = [];
     let totalWeightedScore = 0;
     let totalWeight = 0;
@@ -134,7 +111,6 @@ export const analyze = async (scorecardId, profileData) => {
       categoryResults.push({ name: category.name, score: categoryScore, criteria: criteriaEvaluations });
     }
 
-    // 5. Consolidação do Resultado
     const overallScore = totalWeight > 0 ? Math.round((totalWeightedScore / totalWeight) * 100) : 0;
     const result = {
         overallScore,
@@ -148,10 +124,8 @@ export const analyze = async (scorecardId, profileData) => {
     return result;
 
   } catch (err) {
-    // Apenas relança o erro. O controller será responsável por logar e responder.
     throw err;
   } finally {
-    // 6. Limpeza (SEMPRE executa, no sucesso ou no erro)
     if (profileTable) {
         await dropProfileVectorTable(tempTableName);
     }
