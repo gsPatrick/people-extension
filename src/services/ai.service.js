@@ -1,47 +1,16 @@
-// ARQUIVO COMPLETO "APENAS OLLAMA": src/services/ai.service.js
+// ARQUIVO COMPLETO E ATUALIZADO: src/services/ai.service.js
 
-import axios from 'axios';
+import { OpenAI } from 'openai';
+import axios from 'axios'; // Precisamos do Axios para chamadas locais
 import { log, error as logError } from '../utils/logger.service.js';
 
-/**
- * FUNÇÃO PRINCIPAL: Avalia um critério usando EXCLUSIVAMENTE um LLM local via Ollama.
- * Sem fallback para a OpenAI.
- * @param {object} criterion - O objeto do critério ({ name, description, weight }).
- *- @param {string[]} relevantChunks - Os trechos de texto mais relevantes do perfil.
- * @returns {Promise<{ name: string, score: number, justification: string }>} A avaliação da IA.
- */
-export const analyzeCriterionWithAI = async (criterion, relevantChunks) => {
-    // 1. Verificação inicial de configuração
-    if (process.env.USE_LOCAL_LLM !== 'true') {
-        const errorMsg = "O serviço de IA está configurado para usar apenas o LLM local, mas a variável de ambiente USE_LOCAL_LLM não está definida como 'true' no arquivo .env.";
-        logError(errorMsg);
-        // Retorna uma resposta de erro para não quebrar a aplicação inteira
-        return {
-            name: criterion.name,
-            score: 1,
-            justification: "Erro de configuração: O modo LLM local não está ativado no servidor.",
-        };
-    }
+// Configuração do cliente OpenAI (continua aqui para fallback)
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-    if (!process.env.OLLAMA_API_URL || !process.env.LOCAL_LLM_MODEL) {
-        logError("Variáveis de ambiente para LLM local (OLLAMA_API_URL, LOCAL_LLM_MODEL) não configuradas.");
-        return {
-            name: criterion.name,
-            score: 1,
-            justification: "Erro de configuração: A URL do Ollama ou o nome do modelo não foram definidos no servidor.",
-        };
-    }
-    
-    // 2. Se não houver evidências, retorna rapidamente sem chamar a IA.
-    if (!relevantChunks || relevantChunks.length === 0) {
-        return {
-            name: criterion.name,
-            score: 1, // Nota mínima por falta de evidência
-            justification: "Nenhuma evidência relevante foi encontrada no perfil para este critério."
-        };
-    }
-    
-    // 3. Montagem do Prompt (simplificado para Llama3)
+/**
+ * Função para analisar um critério usando um LLM local via Ollama.
+ */
+const analyzeCriterionWithLocalAI = async (criterion, relevantChunks) => {
     const prompt = `
       Você é um Recrutador Sênior especialista. Avalie um critério com base em evidências de um perfil.
 
@@ -61,31 +30,28 @@ export const analyzeCriterionWithAI = async (criterion, relevantChunks) => {
       }
     `;
 
-    // 4. Chamada para a API do Ollama
     try {
-        log(`[MODO LOCAL ATIVO] Analisando critério "${criterion.name}" com ${process.env.LOCAL_LLM_MODEL} em ${process.env.OLLAMA_API_URL}...`);
+        log(`Analisando critério "${criterion.name}" com LLM local (${process.env.LOCAL_LLM_MODEL})...`);
         
         const response = await axios.post(
             `${process.env.OLLAMA_API_URL}/api/chat`, 
             {
                 model: process.env.LOCAL_LLM_MODEL,
                 messages: [{ role: "user", content: prompt }],
-                format: "json",
-                stream: false
+                format: "json", // Magia do Ollama para forçar a saída em JSON
+                stream: false   // Garante que receberemos a resposta completa de uma vez
             },
             {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 15000 // Timeout de 15 segundos para evitar que a requisição fique presa
+                headers: { 'Content-Type': 'application/json' }
             }
         );
 
+        // O Ollama retorna o JSON como uma string dentro de `message.content`
         const result = JSON.parse(response.data.message.content);
 
         if (typeof result.score !== 'number' || typeof result.justification !== 'string') {
             throw new Error("A resposta do LLM local não tem o formato JSON esperado.");
         }
-
-        log(`[SUCESSO LOCAL] Resposta recebida para "${criterion.name}".`);
 
         return {
             name: criterion.name,
@@ -94,22 +60,94 @@ export const analyzeCriterionWithAI = async (criterion, relevantChunks) => {
         };
 
     } catch (err) {
-        // Log de erro muito mais detalhado
-        let detailedError = err.message;
-        if (err.response) {
-            // Erro vindo da API do Ollama (ex: modelo não encontrado)
-            detailedError = `Erro da API Ollama: ${err.response.status} - ${JSON.stringify(err.response.data)}`;
-        } else if (err.request) {
-            // A requisição foi feita mas não houve resposta (ex: Ollama desligado ou URL errada)
-            detailedError = `Não foi possível conectar ao servidor Ollama em ${process.env.OLLAMA_API_URL}. Verifique se o serviço está rodando e a URL está correta.`;
-        }
-        
-        logError(`[FALHA LOCAL] Falha na avaliação do critério "${criterion.name}":`, detailedError);
-
+        logError(`Falha na avaliação do critério "${criterion.name}" com o LLM local:`, err.response?.data?.error || err.message);
         return {
             name: criterion.name,
             score: 1,
-            justification: `Ocorreu um erro interno ao tentar analisar com a IA local: ${detailedError}`,
+            justification: "Ocorreu um erro interno ao tentar analisar este critério com a IA local.",
         };
+    }
+};
+
+/**
+ * Função para analisar um critério usando a API da OpenAI (versão original).
+ */
+const analyzeCriterionWithOpenAI = async (criterion, relevantChunks) => {
+    const prompt = `
+      Você é um Recrutador Sênior especialista em triagem de candidatos.
+      Sua tarefa é avaliar um único critério de uma vaga com base em trechos específicos de um perfil do LinkedIn.
+
+      **CRITÉRIO A SER AVALIADO:**
+      - Nome: "${criterion.name}"
+
+      **EVIDÊNCIAS (Trechos do perfil mais relevantes para este critério):**
+      ${relevantChunks.map(c => `- "${c}"`).join('\n')}
+
+      **SUA ANÁLISE:**
+      1.  Com base SOMENTE nas evidências fornecidas, atribua uma nota de 1 a 5, onde:
+          1: Nenhuma evidência ou evidência contrária.
+          3: Evidência indireta ou fraca.
+          5: Evidência forte e direta que atende ao critério.
+      2.  Escreva uma justificativa curta e objetiva (idealmente 1 frase, máximo 2) que explique o porquê da sua nota, citando a evidência.
+
+      **Formato OBRIGATÓRIO da Resposta (APENAS JSON, sem texto adicional):**
+      {
+        "score": <sua nota de 1 a 5>,
+        "justification": "<sua justificativa objetiva>"
+      }
+    `;
+
+    try {
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" },
+            temperature: 0.1,
+        });
+        const result = JSON.parse(response.choices[0].message.content);
+        if (typeof result.score !== 'number' || typeof result.justification !== 'string') {
+            throw new Error("A resposta da IA não continha os campos 'score' e 'justification' esperados.");
+        }
+        return {
+            name: criterion.name,
+            score: result.score,
+            justification: result.justification,
+        };
+    } catch (err) {
+        logError(`Falha na avaliação do critério "${criterion.name}" pela OpenAI:`, err.message);
+        return {
+            name: criterion.name,
+            score: 1,
+            justification: "Ocorreu um erro interno ao tentar analisar este critério com a OpenAI.",
+        };
+    }
+};
+
+/**
+ * FUNÇÃO PRINCIPAL: Decide qual motor de IA usar com base nas variáveis de ambiente.
+ */
+export const analyzeCriterionWithAI = async (criterion, relevantChunks) => {
+    // Se não houver evidências, retorna rapidamente sem chamar a IA.
+    if (!relevantChunks || relevantChunks.length === 0) {
+        return {
+            name: criterion.name,
+            score: 1,
+            justification: "Nenhuma evidência relevante foi encontrada no perfil para este critério."
+        };
+    }
+
+    // Verifica a variável de ambiente para decidir qual função chamar.
+    if (process.env.USE_LOCAL_LLM === 'true') {
+        if (!process.env.OLLAMA_API_URL || !process.env.LOCAL_LLM_MODEL) {
+            logError("Variáveis de ambiente para LLM local (OLLAMA_API_URL, LOCAL_LLM_MODEL) não configuradas.");
+            throw new Error("LLM local habilitado, mas não configurado corretamente no .env");
+        }
+        return analyzeCriterionWithLocalAI(criterion, relevantChunks);
+    } else {
+        if (!process.env.OPENAI_API_KEY) {
+            logError("Chave da API da OpenAI não configurada no .env");
+            throw new Error("Chave da API da OpenAI não configurada.");
+        }
+        return analyzeCriterionWithOpenAI(criterion, relevantChunks);
     }
 };
