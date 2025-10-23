@@ -1,73 +1,57 @@
-// CRIE O ARQUIVO: src/Core/Candidate-Flow/updateOrchestrator.js
+// ATUALIZADO: src/Core/Candidate-Flow/updateOrchestrator.js
 
 import { updateTalent } from '../../Inhire/Talents/talents.service.js';
 import { updateApplication } from '../../Inhire/JobTalents/jobTalents.service.js';
 import { getCustomFieldsForEntity } from '../../Inhire/CustomDataManager/customDataManager.service.js';
-import { mapProfileToInhireSchemaWithAI } from '../AI-Flow/aiOrchestrator.js'; 
+// <-- MUDANÇA 1: Trocar a importação da IA pelo mapeador estático
+import { mapProfileToInhirePayloads } from './customFieldMapping.js'; 
 import { getFromCache, setToCache } from '../../utils/cache.service.js';
 import { log, error } from '../../utils/logger.service.js';
+import { saveCachedProfile } from '../../Platform/Cache/cache.service.js';
 
 const TALENTS_CACHE_KEY = 'all_talents';
 
 /**
  * Orquestra a atualização completa de um talento e sua candidatura a partir de novos dados do LinkedIn.
- * @param {string} talentId - O ID do talento a ser atualizado.
- * @param {string} applicationId - O ID da candidatura a ser atualizada.
- * @param {object} scrapedData - Os novos dados brutos vindos do scraping.
+ * AGORA USANDO MAPEAMENTO ESTÁTICO.
  */
 export const handleFullProfileUpdate = async (talentId, applicationId, scrapedData) => {
-    log(`--- UPDATE ORCHESTRATOR: Iniciando atualização completa para Talento ID: ${talentId} ---`);
+    log(`--- UPDATE ORCHESTRATOR (ESTÁTICO): Iniciando atualização para Talento ID: ${talentId} ---`);
     try {
-        // Passo 1: Coletar schemas da InHire para o briefing da IA
-        log("Passo 1/3: Coletando schemas da InHire...");
-        const jobTalentFields = await getCustomFieldsForEntity('JOB_TALENTS');
-        const talentGeneralFields = [
-            { name: 'location', type: 'text', description: 'A cidade/estado/país do candidato.' },
-            { name: 'company', type: 'text', description: 'O nome da empresa atual do candidato.' },
-            { name: 'email', type: 'text', description: 'O email de contato principal.' },
-            { name: 'phone', type: 'text', description: 'O telefone de contato principal.' },
-            { name: 'headline', type: 'text', description: 'O título profissional do candidato.' },
-            { name: 'name', type: 'text', description: 'O nome completo do candidato.' }
-        ];
+        // <-- MUDANÇA 2: Remover a chamada de IA e usar o mapeador estático
+        log("Passo 1/3: Mapeando novos dados do perfil com regras estáticas...");
+        const jobTalentFieldsDefinitions = await getCustomFieldsForEntity('JOB_TALENTS');
+        const { talentPayload, customFieldsPayload } = await mapProfileToInhirePayloads(scrapedData, jobTalentFieldsDefinitions);
+        
+        log('==================== PAYLOADS DE ATUALIZAÇÃO PARA A API ====================');
+        log('Payload do Talento:', JSON.stringify(talentPayload, null, 2));
+        log('Payload de Campos Personalizados:', JSON.stringify(customFieldsPayload, null, 2));
+        log('==========================================================================');
 
-        // Passo 2: Chamar a IA para re-mapear os novos dados
-        log("Passo 2/3: Enviando novos dados para a IA re-mapear...");
-        const mappedPayloads = await mapProfileToInhireSchemaWithAI(scrapedData, talentGeneralFields, jobTalentFields);
-
-        // Limpeza de valores nulos/undefined
-        const cleanTalentPayload = {};
-        if (mappedPayloads.talentPayload) {
-            for (const [key, value] of Object.entries(mappedPayloads.talentPayload)) {
-                if (value !== null && value !== undefined) { cleanTalentPayload[key] = value; }
-            }
+        // Passo 2: Executar as atualizações
+        log("Passo 2/3: Executando atualizações na API InHire...");
+        if (Object.keys(talentPayload).length > 0) {
+            await updateTalent(talentId, talentPayload);
+            log(`Talento ${talentId} atualizado com ${Object.keys(talentPayload).length} campos.`);
         }
-        const cleanApplicationPayload = { customFields: [] };
-        if (mappedPayloads.applicationPayload && Array.isArray(mappedPayloads.applicationPayload.customFields)) {
-            cleanApplicationPayload.customFields = mappedPayloads.applicationPayload.customFields.filter(field => 
-                field.value !== null && field.value !== undefined
-            );
+        if (customFieldsPayload.length > 0 && applicationId) {
+            await updateApplication(applicationId, { customFields: customFieldsPayload });
+            log(`Candidatura ${applicationId} atualizada com ${customFieldsPayload.length} campos personalizados.`);
         }
 
-        // Passo 3: Executar as atualizações
-        log("Passo 3/3: Executando atualizações na API InHire...");
-        if (Object.keys(cleanTalentPayload).length > 0) {
-            await updateTalent(talentId, cleanTalentPayload);
-            log(`Talento ${talentId} atualizado com ${Object.keys(cleanTalentPayload).length} campos.`);
-        }
-        if (cleanApplicationPayload.customFields.length > 0) {
-            await updateApplication(applicationId, cleanApplicationPayload);
-            log(`Candidatura ${applicationId} atualizada com ${cleanApplicationPayload.customFields.length} campos personalizados.`);
+        // Passo 3: Atualizar caches
+        log("Passo 3/3: Atualizando caches...");
+        if (scrapedData.linkedinUsername) {
+            await saveCachedProfile(scrapedData.linkedinUsername, scrapedData);
         }
 
-        // Atualização do cache de talentos
         const cachedTalents = getFromCache(TALENTS_CACHE_KEY);
         if (cachedTalents) {
             const index = cachedTalents.findIndex(t => t.id === talentId);
             if (index !== -1) {
-                // Atualiza o objeto no cache com os novos dados
-                cachedTalents[index] = { ...cachedTalents[index], ...cleanTalentPayload };
+                cachedTalents[index] = { ...cachedTalents[index], ...talentPayload };
                 setToCache(TALENTS_CACHE_KEY, cachedTalents);
-                log(`CACHE UPDATE: Talento ID '${talentId}' atualizado no cache.`);
+                log(`CACHE UPDATE: Talento ID '${talentId}' atualizado no cache em memória.`);
             }
         }
 
