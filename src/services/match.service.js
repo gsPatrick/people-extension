@@ -1,13 +1,16 @@
-// ARQUIVO COMPLETO E FINAL (COM BYPASS DE CACHE): src/services/match.service.js
+// ARQUIVO COMPLETO E FINAL: src/services/match.service.js
 
-// <-- MUDANÇA: Importamos o 'db' diretamente para acessar o model.
 import db from '../models/index.js';
-// import { findById as findScorecardById } from './scorecard.service.js'; // Não usaremos mais esta importação aqui.
 import { createEmbeddings } from './embedding.service.js';
 import { analyzeCriterionWithAI } from './ai.service.js';
 import { createProfileVectorTable, dropProfileVectorTable } from './vector.service.js';
 import { log, error as logError } from '../utils/logger.service.js';
 
+/**
+ * Divide os dados textuais de um perfil em pedaços (chunks) para análise.
+ * @param {object} profileData - Os dados do perfil.
+ * @returns {string[]} Um array de strings, onde cada string é um chunk de texto.
+ */
 const chunkProfile = (profileData) => {
   const chunks = [];
   if (profileData.headline) chunks.push(`Título: ${profileData.headline}`);
@@ -21,7 +24,10 @@ const chunkProfile = (profileData) => {
   return chunks.filter(Boolean);
 };
 
-// Helper para ordenar em memória, copiado do scorecard.service para garantir consistência
+/**
+ * Função helper para ordenar os resultados em memória, em vez de na query SQL.
+ * @param {object} data - O objeto scorecard ou categoria.
+ */
 const sortChildrenInMemory = (data) => {
     if (data.categories) {
         data.categories.sort((a, b) => a.order - b.order);
@@ -35,16 +41,21 @@ const sortChildrenInMemory = (data) => {
     }
 };
 
+/**
+ * Orquestra a análise de match. Esta função executa a lógica de negócio
+ * e lança um erro em caso de falha, que deve ser capturado pelo controller.
+ */
 export const analyze = async (scorecardId, profileData) => {
   const startTime = Date.now();
+  // Cria um nome de tabela único e aleatório para esta requisição.
   const tempTableName = `profile_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   log(`Iniciando análise com tabela temporária '${tempTableName}'`);
   
   let profileTable;
 
   try {
-    // --- MUDANÇA CRÍTICA: BUSCA DIRETA NO BANCO DE DADOS, IGNORANDO O CACHE ---
-    log(`Buscando scorecard ${scorecardId} diretamente no banco de dados (bypass de cache)...`);
+    // 1. Busca Direta no Banco de Dados (Bypass de Cache)
+    log(`Buscando scorecard ${scorecardId} diretamente no banco de dados...`);
     const scorecardInstance = await db.Scorecard.findByPk(scorecardId, {
       include: [
         {
@@ -57,27 +68,30 @@ export const analyze = async (scorecardId, profileData) => {
     });
 
     if (!scorecardInstance) {
-      throw new Error('Scorecard não encontrado.');
+      const err = new Error('Scorecard não encontrado.');
+      err.statusCode = 404; // Adiciona status code para o controller.
+      throw err;
     }
     
-    // Converte para objeto simples e ordena em memória, como no serviço original
+    // Converte para objeto simples e ordena em memória.
     const scorecard = scorecardInstance.get({ plain: true });
     sortChildrenInMemory(scorecard);
-    // --- FIM DA MUDANÇA ---
 
+    // 2. Preparação dos Dados do Perfil
     const profileChunks = chunkProfile(profileData);
     if (profileChunks.length === 0) {
       throw new Error('O perfil não contém texto analisável.');
     }
     
+    // 3. Geração de Embeddings e População da Tabela Temporária
     const profileEmbeddings = await createEmbeddings(profileChunks);
-    
     const profileDataForLance = profileEmbeddings.map((vector, i) => ({
       vector,
       text: profileChunks[i]
     }));
     profileTable = await createProfileVectorTable(tempTableName, profileDataForLance);
 
+    // 4. Análise Focada (Busca Vetorial + IA)
     const categoryResults = [];
     let totalWeightedScore = 0;
     let totalWeight = 0;
@@ -85,7 +99,7 @@ export const analyze = async (scorecardId, profileData) => {
     for (const category of scorecard.categories) {
       const analysisPromises = (category.criteria || []).map(async (criterion) => {
         if (!criterion.embedding) {
-          logError(`Critério "${criterion.name}" não possui embedding. Pulando.`);
+          logError(`Critério "${criterion.name}" (ID: ${criterion.id}) não possui embedding. Pulando.`);
           return null;
         }
         
@@ -95,7 +109,6 @@ export const analyze = async (scorecardId, profileData) => {
             .execute();
 
         const uniqueRelevantChunks = [...new Set(searchResults.map(result => result.text))];
-
         const evaluation = await analyzeCriterionWithAI(criterion, uniqueRelevantChunks);
         return { evaluation, weight: criterion.weight };
       });
@@ -121,6 +134,7 @@ export const analyze = async (scorecardId, profileData) => {
       categoryResults.push({ name: category.name, score: categoryScore, criteria: criteriaEvaluations });
     }
 
+    // 5. Consolidação do Resultado
     const overallScore = totalWeight > 0 ? Math.round((totalWeightedScore / totalWeight) * 100) : 0;
     const result = {
         overallScore,
@@ -134,11 +148,10 @@ export const analyze = async (scorecardId, profileData) => {
     return result;
 
   } catch (err) {
-    logError(`Erro durante a análise para o scorecard ${scorecardId}:`, err.message);
-    const serviceError = new Error(err.message);
-    serviceError.statusCode = err.message === 'Scorecard não encontrado.' ? 404 : 500;
-    throw serviceError;
+    // Apenas relança o erro. O controller será responsável por logar e responder.
+    throw err;
   } finally {
+    // 6. Limpeza (SEMPRE executa, no sucesso ou no erro)
     if (profileTable) {
         await dropProfileVectorTable(tempTableName);
     }
