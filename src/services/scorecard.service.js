@@ -8,12 +8,12 @@ const SCORECARDS_CACHE_PREFIX = 'scorecards_';
 const ALL_SCORECARDS_CACHE_KEY = `${SCORECARDS_CACHE_PREFIX}all`;
 
 /**
- * Função helper para ordenar os resultados em memória, em vez de na query SQL.
- * @param {object} data - O objeto scorecard ou categoria.
+ * Função helper para ordenar categorias e critérios em memória.
+ * @param {object} data - O objeto scorecard.
  */
 const sortChildrenInMemory = (data) => {
-    if (data.categories) {
-        // Ordena as categorias
+    if (data && data.categories) {
+        // Ordena as categorias pelo campo 'order'
         data.categories.sort((a, b) => a.order - b.order);
         
         // Para cada categoria, ordena seus critérios
@@ -21,7 +21,8 @@ const sortChildrenInMemory = (data) => {
             if (category.criteria) {
                 category.criteria.sort((a, b) => a.order - b.order);
             } else {
-                category.criteria = []; // Garante que criteria sempre seja um array
+                // Garante que 'criteria' seja sempre um array para evitar erros no frontend
+                category.criteria = [];
             }
         });
     }
@@ -39,33 +40,26 @@ export const findAll = async () => {
 
   try {
     const scorecards = await db.Scorecard.findAll({
-      include: [
-        {
-          model: db.Category,
-          as: 'categories',
-          include: [{ model: db.Criterion, as: 'criteria' }],
-        },
-      ],
-      // <-- MUDANÇA: Ordenação aninhada complexa removida da query principal.
-      // Apenas a ordenação do scorecard principal permanece.
+      include: [{
+        model: db.Category,
+        as: 'categories',
+        include: [{ model: db.Criterion, as: 'criteria' }],
+      }],
       order: [['name', 'ASC']],
     });
-
     const plainScorecards = scorecards.map(sc => sc.get({ plain: true }));
-
-    // <-- MUDANÇA: Ordena as associações em JavaScript após a busca.
     plainScorecards.forEach(sortChildrenInMemory);
-
     setToCache(ALL_SCORECARDS_CACHE_KEY, plainScorecards);
     return plainScorecards;
   } catch (err) {
-    logError('Erro ao buscar todos os scorecards:', err.message);
+    logError('Erro ao buscar todos os scorecards:', err);
     throw new Error('Não foi possível recuperar os scorecards do banco de dados.');
   }
 };
 
 /**
  * Busca um scorecard específico pelo seu ID com todas as associações.
+ * Esta é a versão robusta que evita erros complexos de query do Sequelize.
  */
 export const findById = async (id) => {
   const cacheKey = `${SCORECARDS_CACHE_PREFIX}${id}`;
@@ -76,35 +70,40 @@ export const findById = async (id) => {
   }
   
   try {
-    const scorecard = await db.Scorecard.findByPk(id, {
-      include: [
-        {
-          model: db.Category,
-          as: 'categories',
-          separate: true,
-          include: [{ model: db.Criterion, as: 'criteria' }],
-        },
-      ],
-      // <-- MUDANÇA: A cláusula 'order' complexa foi totalmente removida daqui.
+    // 1. Busca o scorecard principal primeiro.
+    const scorecard = await db.Scorecard.findByPk(id);
+    if (!scorecard) {
+        log(`DB MISS: Scorecard com ID ${id} não encontrado no banco de dados.`);
+        return null; // Retorna nulo explicitamente se não encontrar
+    }
+
+    // 2. Busca as categorias e critérios associados em uma query separada.
+    const categories = await db.Category.findAll({
+        where: { scorecardId: id },
+        include: [{ model: db.Criterion, as: 'criteria' }],
     });
 
-    if (scorecard) {
-      const plainScorecard = scorecard.get({ plain: true });
-      
-      // <-- MUDANÇA: Ordena as associações em JavaScript após a busca.
-      sortChildrenInMemory(plainScorecard);
-      
-      setToCache(cacheKey, plainScorecard);
-      return plainScorecard;
-    }
-    return null;
+    // 3. Monta o objeto final em JavaScript.
+    const plainScorecard = scorecard.get({ plain: true });
+    plainScorecard.categories = categories.map(cat => cat.get({ plain: true }));
+
+    // 4. Ordena as associações em memória.
+    sortChildrenInMemory(plainScorecard);
+    
+    // 5. Salva no cache e retorna.
+    setToCache(cacheKey, plainScorecard);
+    log(`DB HIT: Scorecard com ID ${id} buscado do banco e salvo no cache.`);
+    return plainScorecard;
+
   } catch (err) {
-    logError(`Erro ao buscar scorecard com ID ${id}:`, err.message);
+    logError(`Erro ao buscar scorecard com ID ${id}:`, err);
     throw new Error('Não foi possível recuperar o scorecard do banco de dados.');
   }
 };
 
-// As funções create, update e remove não precisam de alterações e permanecem como estão.
+/**
+ * Cria um novo scorecard com suas categorias e critérios.
+ */
 export const create = async (scorecardData) => {
   const t = await db.sequelize.transaction();
   try {
@@ -140,11 +139,14 @@ export const create = async (scorecardData) => {
     return findById(newScorecard.id);
   } catch (err) {
     await t.rollback();
-    logError('Erro ao criar scorecard:', err.message);
+    logError('Erro ao criar scorecard:', err);
     throw new Error('Falha ao criar o scorecard. A transação foi revertida.');
   }
 };
 
+/**
+ * Atualiza um scorecard existente.
+ */
 export const update = async (id, scorecardData) => {
     const t = await db.sequelize.transaction();
     try {
@@ -184,11 +186,14 @@ export const update = async (id, scorecardData) => {
         return findById(id);
     } catch (err) {
         await t.rollback();
-        logError(`Erro ao atualizar scorecard ${id}:`, err.message);
+        logError(`Erro ao atualizar scorecard ${id}:`, err);
         throw new Error('Falha ao atualizar o scorecard. A transação foi revertida.');
     }
 };
 
+/**
+ * Deleta um scorecard pelo seu ID.
+ */
 export const remove = async (id) => {
     const t = await db.sequelize.transaction();
     try {
@@ -206,7 +211,7 @@ export const remove = async (id) => {
         return true;
     } catch (err) {
         await t.rollback();
-        logError(`Erro ao deletar scorecard ${id}:`, err.message);
+        logError(`Erro ao deletar scorecard ${id}:`, err);
         throw new Error('Falha ao deletar o scorecard.');
     }
 };
