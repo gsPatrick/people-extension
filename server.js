@@ -1,4 +1,4 @@
-// ARQUIVO COMPLETO E FINAL: server.js
+// ARQUIVO COMPLETO: server.js (Fluxo de Inicialização Sequencial e Seguro)
 
 import 'dotenv/config';
 import path from 'path';
@@ -11,7 +11,7 @@ import { memoryStorageAdapter } from './src/Platform/Storage/memoryStorage.adapt
 import { initializeSessionService } from './src/Core/session.service.js';
 import { initializeAuthStorage } from './src/Inhire/Auth/authStorage.service.js';
 import { performLogin } from './src/Core/Auth-Flow/authOrchestrator.js';
-import { sequelize } from './src/models/index.js'; // <-- MUDANÇA: Agora importa a instância já configurada
+import { sequelize } from './src/models/index.js';
 import { syncEntityCache } from './src/utils/sync.service.js';
 import { fetchAllJobsWithDetails } from './src/Core/Job-Flow/jobOrchestrator.js';
 import { fetchAllTalentsForSync, fetchCandidatesForJob } from './src/Core/management-flow/managementOrchestrator.js'; 
@@ -19,7 +19,8 @@ import { getFromCache } from './src/utils/cache.service.js';
 import { createUser, findUserByEmail } from './src/Core/User-Flow/userService.js';
 import apiRoutes from './src/routes/apiRoutes.js';
 import cors from 'cors';
-import { initializeVectorDB } from './src/services/vector.service.js'; // <-- 1. IMPORTE O NOVO SERVIÇO
+import { initializeVectorDB } from './src/services/vector.service.js';
+import * as scorecardService from './src/services/scorecard.service.js'; 
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,41 +29,29 @@ const PORT = process.env.PORT || 4000;
 const JOBS_CACHE_KEY = 'all_jobs_with_details';
 const TALENTS_CACHE_KEY = 'all_talents';
 
-/**
- * Inicializa o banco de dados PostgreSQL.
- */
 export const initializeDatabase = async () => {
     log('--- INICIALIZAÇÃO DO BANCO DE DADOS (PostgreSQL + Sequelize) ---');
     try {
-        // Testa a conexão
         await sequelize.authenticate();
         log('✅ Conexão com o PostgreSQL estabelecida com sucesso.');
         
-        // Sincroniza os modelos. `force: true` apaga e recria as tabelas.
-        // CUIDADO: Isso apaga todos os dados em cada reinicialização.
         log('Sincronizando models com o banco de dados (force: true)...');
         await sequelize.sync({ force: true });
         log('✅ Models sincronizados com sucesso (tabelas recriadas).');
-
     } catch (err) {
-        logError('Falha crítica ao inicializar o banco de dados PostgreSQL:', {
-            message: err.message,
-            stack: err.stack,
-        });
+        logError('Falha crítica ao inicializar o banco de dados PostgreSQL:', { message: err.message, stack: err.stack });
         process.exit(1);
     }
 };
 
-// --- Funções de sincronização (sem alterações) ---
 const syncJobs = () => syncEntityCache(JOBS_CACHE_KEY, fetchAllJobsWithDetails);
 const syncTalents = () => syncEntityCache(TALENTS_CACHE_KEY, fetchAllTalentsForSync);
 
-// --- Pré-carregamento de candidatos (sem alterações) ---
 const prefetchAllCandidates = async () => {
-    log('--- PREFETCH WORKER: Iniciando pré-carregamento de candidatos InHire ---');
+    log('--- PREFETCH WORKER: Iniciando pré-carregamento de candidatos InHire (em segundo plano) ---');
     const allJobs = getFromCache(JOBS_CACHE_KEY);
     if (!allJobs || allJobs.length === 0) {
-        logError('PREFETCH WORKER: Não há vagas InHire no cache para buscar candidatos. Pulando.');
+        logError('PREFETCH WORKER: Não há vagas no cache para buscar candidatos. Pulando.');
         return;
     }
     log(`PREFETCH WORKER: Encontradas ${allJobs.length} vagas. Buscando candidatos...`);
@@ -72,10 +61,9 @@ const prefetchAllCandidates = async () => {
         await Promise.all(batch.map(job => fetchCandidatesForJob(job.id)));
         log(`PREFETCH WORKER: Lote de ${batch.length} vagas processado.`);
     }
-    log('--- PREFETCH WORKER: Pré-carregamento concluído. ---');
+    log('--- PREFETCH WORKER: Pré-carregamento de candidatos concluído. ---');
 };
 
-// --- Criação do usuário admin (sem alterações) ---
 const seedAdminUser = async () => {
     const adminEmail = 'admin@admin.com';
     const existingAdmin = await findUserByEmail(adminEmail);
@@ -98,10 +86,8 @@ const seedAdminUser = async () => {
     }
 };
 
-// --- Inicialização do servidor ---
 const startServer = async () => {
     const app = express();
-
     configureLogger({ toFile: true });
     
     app.use(cors());
@@ -109,11 +95,11 @@ const startServer = async () => {
     app.use(express.static(path.join(__dirname, 'public')));
     log('--- INICIALIZAÇÃO DO SERVIDOR ---');
 
-    // <-- MUDANÇA: A lógica de remoção de arquivo e VSS foi removida.
+    // 1. Inicializa os bancos de dados
     await initializeDatabase();
-    // <-- 2. ADICIONE A CHAMADA DE INICIALIZAÇÃO DO LANCEDB AQUI
-    await initializeVectorDB(); 
+    await initializeVectorDB();
 
+    // 2. Inicializa serviços básicos
     initializeSessionService(memoryStorageAdapter);
     initializeAuthStorage(memoryStorageAdapter);
     log('✅ Serviços de sessão e autenticação InHire inicializados.');
@@ -121,6 +107,7 @@ const startServer = async () => {
     await seedAdminUser();
     log('✅ Verificação do usuário admin local concluída.');
 
+    // 3. Autentica com a API externa
     const loginResult = await performLogin();
     if (!loginResult.success) {
         logError('Falha crítica no login da InHire. O servidor não pode continuar.');
@@ -128,23 +115,35 @@ const startServer = async () => {
     }
     log('✅ Login na API da InHire bem-sucedido.');
 
-    log('Realizando a primeira sincronização de VAGAS da InHire...');
-    await syncJobs();
-    log('✅ Sincronização de Vagas concluída.');
+    // --- MUDANÇA CRÍTICA: AGUARDA TODAS AS SINCRONIZAÇÕES INICIAIS ---
+    log('Realizando a primeira sincronização de TODOS os dados essenciais...');
 
-    log('Realizando a primeira sincronização de TALENTOS da InHire...');
-    await syncTalents();
-    log('✅ Sincronização de Talentos concluída.');
+    // Usamos Promise.all para rodar as sincronizações em paralelo, mas esperamos que TODAS terminem.
+    try {
+        await Promise.all([
+            scorecardService.findAll(), // Carrega e cacheia os scorecards
+            syncJobs(),               // Carrega e cacheia as vagas
+            syncTalents()             // Carrega e cacheia os talentos
+        ]);
+        log('✅ Sincronização inicial de Scorecards, Vagas e Talentos concluída.');
+    } catch (err) {
+        logError('Falha crítica durante a sincronização inicial de dados:', err.message);
+        process.exit(1);
+    }
+    // --- FIM DA MUDANÇA ---
 
+    // 4. Configura as rotas da API, agora que os dados estão prontos
     app.use('/api', apiRoutes);
-    log('✅ Rotas da API configuradas.');
+    log('✅ Rotas da API configuradas e prontas para receber requisições.');
 
+    // 5. Inicia o servidor para aceitar conexões
     app.listen(PORT, () => {
         log(`🚀 Servidor rodando e ouvindo na porta ${PORT}`);
-        log('Iniciando pré-carregamento de candidatos em segundo plano...');
-        prefetchAllCandidates().catch(err => logError("Erro durante o pré-carregamento:", err));
+        // O pré-carregamento de candidatos pode continuar em segundo plano, pois não é crítico para a primeira resposta
+        prefetchAllCandidates().catch(err => logError("Erro durante o pré-carregamento em segundo plano:", err));
     });
 
+    // 6. Agenda as sincronizações periódicas
     setInterval(syncJobs, 60000);
     setInterval(syncTalents, 60000);
     log('🔄 Sincronização periódica agendada a cada 60s.');
