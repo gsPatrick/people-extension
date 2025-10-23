@@ -1,4 +1,4 @@
-// ARQUIVO COMPLETO E FINAL: src/services/ai.service.js
+// ARQUIVO COMPLETO E ATUALIZADO: src/services/ai.service.js
 
 import { OpenAI } from 'openai';
 import { log, error as logError } from '../utils/logger.service.js';
@@ -6,61 +6,64 @@ import { log, error as logError } from '../utils/logger.service.js';
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 /**
- * Analisa um scorecard completo, usando um mapa de evidências pré-filtradas, em uma única chamada de IA.
- * @param {object} scorecard - O objeto completo do scorecard.
- * @param {Map<string, string[]>} evidenceMap - Mapa onde a chave é o nome do critério e o valor é um array de chunks de texto.
- * @returns {Promise<object>} O resultado da análise no formato esperado.
+ * Avalia um único critério com base em trechos relevantes de um perfil.
+ * @param {object} criterion - O objeto do critério ({ name, description, weight }).
+ * @param {string[]} relevantChunks - Os trechos de texto mais relevantes do perfil.
+ * @returns {Promise<{ name: string, score: number, justification: string }>} A avaliação da IA.
  */
-export const analyzeWithPreFilteredEvidence = async (scorecard, evidenceMap) => {
+export const analyzeCriterionWithAI = async (criterion, relevantChunks) => {
   if (!process.env.OPENAI_API_KEY) throw new Error("Chave da API da OpenAI não configurada.");
 
-  // Prepara os dados para o prompt
-  const analysisData = scorecard.categories.map(category => ({
-      name: category.name,
-      criteria: (category.criteria || []).map(criterion => ({
+  // Se não houver chunks relevantes, não há o que analisar.
+  if (!relevantChunks || relevantChunks.length === 0) {
+      return {
           name: criterion.name,
-          evidence: evidenceMap.get(criterion.name) || ["Nenhuma evidência direta encontrada pela busca vetorial."]
-      }))
-  }));
-
-  const jsonStructure = {
-    overallScore: "number (0-100)",
-    categories: [ { name: "string", criteria: [ { name: "string", score: "number (1-5)", justification: "string" } ] } ]
-  };
+          score: 1,
+          justification: "Nenhuma evidência encontrada no perfil para este critério."
+      };
+  }
 
   const prompt = `
-    Você é um Recrutador Sênior especialista. Sua tarefa é avaliar um candidato contra um scorecard.
-    Para cada critério do scorecard, eu já encontrei as evidências mais relevantes no perfil do candidato.
+    Você é um Recrutador Sênior especialista. Sua tarefa é avaliar um único critério com base em trechos de um perfil.
 
-    **TAREFA:**
-    Analise o conjunto de critérios e evidências abaixo. Para CADA critério, atribua uma nota de 1 a 5 e escreva uma justificativa curta.
-    Se a evidência for "Nenhuma evidência...", a nota deve ser 1.
-    Finalmente, calcule um "Overall Score" de 0 a 100 para o candidato.
+    **CRITÉRIO A SER AVALIADO:**
+    - Nome: "${criterion.name}"
 
-    **CRITÉRIOS E EVIDÊNCIAS:**
-    ${JSON.stringify(analysisData, null, 2)}
+    **EVIDÊNCIAS (Trechos relevantes do perfil):**
+    ${relevantChunks.map(c => `- ${c}`).join('\n')}
 
-    **INSTRUÇÕES DE SAÍDA:**
-    Responda APENAS com um objeto JSON. Não inclua nenhum texto ou formatação fora do JSON.
-    Siga ESTRITAMENTE a estrutura abaixo.
+    **SUA ANÁLISE:**
+    1. Baseado SOMENTE nas evidências fornecidas, atribua uma nota de 1 a 5 (1 = nenhuma evidência, 5 = evidência forte).
+    2. Escreva uma justificativa curta e objetiva (1 frase) para a sua nota.
 
-    **ESTRUTURA JSON OBRIGATÓRIA:**
-    ${JSON.stringify(jsonStructure, null, 2)}
+    **Formato OBRIGATÓRIO da Resposta (APENAS JSON):**
+    {
+      "score": <sua nota de 1 a 5>,
+      "justification": "<sua justificativa objetiva>"
+    }
   `;
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o-mini", // Continua sendo uma ótima escolha para tarefas focadas
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       temperature: 0.1,
     });
     
-    const content = response.choices[0].message.content;
-    return JSON.parse(content);
+    const result = JSON.parse(response.choices[0].message.content);
 
+    return {
+      name: criterion.name,
+      score: result.score || 1,
+      justification: result.justification || "Não foi possível gerar uma justificativa.",
+    };
   } catch (err) {
-    logError(`Falha na análise 'Single-Shot com Evidências':`, err.message);
-    throw new Error('Ocorreu um erro ao processar a análise final com a IA.');
+    logError(`Falha na avaliação do critério "${criterion.name}" pela IA:`, err.message);
+    return {
+      name: criterion.name,
+      score: 1,
+      justification: "Ocorreu um erro ao analisar este critério com a IA.",
+    };
   }
 };
