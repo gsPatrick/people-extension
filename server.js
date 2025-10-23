@@ -87,66 +87,68 @@ const seedAdminUser = async () => {
 };
 
 const startServer = async () => {
-    const app = express();
+    // --- ETAPA 0: Configuração Inicial ---
     configureLogger({ toFile: true });
-    
+    log('--- INICIANDO SERVIDOR ---');
+    const app = express();
     app.use(cors());
     app.use(express.json());
     app.use(express.static(path.join(__dirname, 'public')));
-    log('--- INICIALIZAÇÃO DO SERVIDOR ---');
-
-    // 1. Inicializa os bancos de dados
-    await initializeDatabase();
-    await initializeVectorDB();
-
-    // 2. Inicializa serviços básicos
-    initializeSessionService(memoryStorageAdapter);
-    initializeAuthStorage(memoryStorageAdapter);
-    log('✅ Serviços de sessão e autenticação InHire inicializados.');
-
-    await seedAdminUser();
-    log('✅ Verificação do usuário admin local concluída.');
-
-    // 3. Autentica com a API externa
-    const loginResult = await performLogin();
-    if (!loginResult.success) {
-        logError('Falha crítica no login da InHire. O servidor não pode continuar.');
-        process.exit(1);
-    }
-    log('✅ Login na API da InHire bem-sucedido.');
-
-    // --- MUDANÇA CRÍTICA: AGUARDA TODAS AS SINCRONIZAÇÕES INICIAIS ---
-    log('Realizando a primeira sincronização de TODOS os dados essenciais...');
-
-    // Usamos Promise.all para rodar as sincronizações em paralelo, mas esperamos que TODAS terminem.
+    
     try {
+        // --- ETAPA 1: INICIALIZAÇÃO DAS BASES DE DADOS ---
+        log('ETAPA 1: Conectando e sincronizando bancos de dados...');
+        await sequelize.sync({ force: true }); // Conecta, limpa e cria tabelas no PostgreSQL
+        await initializeVectorDB();             // Conecta e prepara o LanceDB
+        log('✅ Bancos de dados (PostgreSQL & LanceDB) prontos.');
+
+        // --- ETAPA 2: AUTENTICAÇÃO E PREPARAÇÃO DE SERVIÇOS ---
+        log('ETAPA 2: Configurando serviços e autenticação...');
+        initializeSessionService(memoryStorageAdapter);
+        initializeAuthStorage(memoryStorageAdapter);
+        await seedAdminUser();
+        const loginResult = await performLogin();
+        if (!loginResult.success) {
+            throw new Error('Falha crítica no login da API InHire.');
+        }
+        log('✅ Autenticação com a API externa bem-sucedida.');
+
+        // --- ETAPA 3: SINCRONIZAÇÃO DE DADOS CRÍTICOS (BLOQUEANTE) ---
+        log('ETAPA 3: Sincronizando dados essenciais (Vagas, Talentos, Scorecards)...');
+        // Usamos Promise.all para executar em paralelo, mas o 'await' garante que o fluxo só continua após a conclusão de TODAS.
         await Promise.all([
             scorecardService.findAll(), // Carrega e cacheia os scorecards
             syncJobs(),               // Carrega e cacheia as vagas
             syncTalents()             // Carrega e cacheia os talentos
         ]);
-        log('✅ Sincronização inicial de Scorecards, Vagas e Talentos concluída.');
-    } catch (err) {
-        logError('Falha crítica durante a sincronização inicial de dados:', err.message);
-        process.exit(1);
+        log('✅ Sincronização inicial de dados essenciais concluída. O cache está pronto.');
+
+        // --- ETAPA 4: CONFIGURAÇÃO DAS ROTAS DA API ---
+        log('ETAPA 4: Configurando as rotas da API...');
+        app.use('/api', apiRoutes);
+        log('✅ Rotas da API prontas.');
+
+        // --- ETAPA 5: ABERTURA DO SERVIDOR PARA REQUISIÇÕES ---
+        // Esta é a última etapa. O servidor só começa a aceitar conexões AQUI.
+        log('ETAPA 5: Abrindo a porta do servidor...');
+        app.listen(PORT, () => {
+            log(`🚀 SERVIDOR PRONTO E OUVINDO NA PORTA ${PORT}`);
+            
+            // Tarefas não-críticas que podem rodar em segundo plano após o início
+            log('Iniciando tarefas de segundo plano (pré-carregamento de candidatos)...');
+            prefetchAllCandidates().catch(err => logError("Erro durante o pré-carregamento em segundo plano:", err));
+        });
+
+        // --- ETAPA 6: AGENDAMENTO DE TAREFAS PERIÓDICAS ---
+        log('ETAPA 6: Agendando sincronizações periódicas...');
+        setInterval(syncJobs, 60000);
+        setInterval(syncTalents, 60000);
+        log('🔄 Sincronização periódica agendada a cada 60s.');
+
+    } catch (error) {
+        logError('❌ FALHA CRÍTICA NA INICIALIZAÇÃO DO SERVIDOR. O PROCESSO SERÁ ENCERRADO.', error.message);
+        process.exit(1); // Encerra o servidor se qualquer etapa crítica falhar.
     }
-    // --- FIM DA MUDANÇA ---
-
-    // 4. Configura as rotas da API, agora que os dados estão prontos
-    app.use('/api', apiRoutes);
-    log('✅ Rotas da API configuradas e prontas para receber requisições.');
-
-    // 5. Inicia o servidor para aceitar conexões
-    app.listen(PORT, () => {
-        log(`🚀 Servidor rodando e ouvindo na porta ${PORT}`);
-        // O pré-carregamento de candidatos pode continuar em segundo plano, pois não é crítico para a primeira resposta
-        prefetchAllCandidates().catch(err => logError("Erro durante o pré-carregamento em segundo plano:", err));
-    });
-
-    // 6. Agenda as sincronizações periódicas
-    setInterval(syncJobs, 60000);
-    setInterval(syncTalents, 60000);
-    log('🔄 Sincronização periódica agendada a cada 60s.');
 };
 
 startServer();
