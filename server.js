@@ -141,9 +141,10 @@ const startServer = async () => {
 
         // --- ETAPA 6: AGENDAMENTO DE TAREFAS PERIÓDICAS ---
         log('ETAPA 6: Agendando sincronizações periódicas...');
-        setInterval(syncJobs, 60000);
-        setInterval(syncTalents, 60000);
-        log('🔄 Sincronização periódica agendada a cada 60s.');
+        // As duas linhas abaixo foram comentadas para desativar os logs de sincronização repetitivos durante a depuração.
+        // setInterval(syncJobs, 60000);
+        // setInterval(syncTalents, 60000);
+        log('🔄 Sincronização periódica DESATIVADA para depuração.');
 
     } catch (error) {
         logError('❌ FALHA CRÍTICA NA INICIALIZAÇÃO DO SERVIDOR. O PROCESSO SERÁ ENCERRADO.', error.message);

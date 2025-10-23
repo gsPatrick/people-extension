@@ -14,11 +14,11 @@ export const getFromCache = (key) => {
   const cachedItem = cache.get(key);
 
   if (!cachedItem) {
-    log(`CACHE MISS: Chave "${key}" não encontrada.`);
+    // log(`CACHE MISS: Chave "${key}" não encontrada.`); // Silenciado para depuração
     return null;
   }
 
-  log(`CACHE HIT: Retornando dados para a chave "${key}".`);
+  // log(`CACHE HIT: Retornando dados para a chave "${key}".`); // Silenciado para depuração
   // Retorna diretamente os dados, sem o timestamp
   return cachedItem.data;
 };
@@ -34,7 +34,7 @@ export const setToCache = (key, data) => {
     timestamp: Date.now(), // Mantemos o timestamp para referência e debug
   };
   cache.set(key, item);
-  log(`CACHE SET: Dados armazenados para a chave "${key}".`);
+  // log(`CACHE SET: Dados armazenados para a chave "${key}".`); // Silenciado para depuração
 };
 
 /**

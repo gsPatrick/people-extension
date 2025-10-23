@@ -1,94 +1,48 @@
-// ARQUIVO FINAL E COMPLETO: src/Core/Candidate-Flow/customFieldMapping.js
+// ARQUIVO ATUALIZADO: src/Core/Candidate-Flow/customFieldMapping.js
 
 import { getGenderByName } from '../../utils/gender.service.js';
+import { log } from '../../utils/logger.service.js'; // <-- MUDANÇA: Importar o logger
 
-// ===================================================================
-// FUNÇÕES AUXILIARES DE TRANSFORMAÇÃO
-// ===================================================================
-
-/**
- * Extrai o nome do estado de uma string de localização (ex: "São Paulo, São Paulo, Brasil").
- * @param {string} locationString - A localização completa.
- * @returns {string|null} O estado ou null se não puder ser extraído.
- */
+// ... (funções auxiliares como extractStateFromLocation, mapJobTitleToLevel, etc. permanecem iguais)
 function extractStateFromLocation(locationString) {
     if (!locationString) return null;
     const parts = locationString.split(',').map(p => p.trim());
-    // Ex: "São Paulo, São Paulo, Brasil" -> parts[1] é "São Paulo"
-    if (parts.length >= 2) {
-        return parts[1];
-    }
-    return locationString; // Retorna a string original como fallback
+    if (parts.length >= 2) return parts[1];
+    return locationString;
 }
-
-/**
- * Mapeia um título de cargo para um nível hierárquico pré-definido.
- * @param {string} jobTitle - O título do cargo vindo do LinkedIn.
- * @param {Array<object>} fieldOptions - As opções disponíveis no campo 'select' da InHire.
- * @returns {object|null} O objeto de opção da InHire ou null.
- */
 function mapJobTitleToLevel(jobTitle, fieldOptions) {
     if (!jobTitle || !Array.isArray(fieldOptions)) return null;
     const title = jobTitle.toLowerCase();
-
-    // Mapeia da posição mais alta para a mais baixa para evitar falsos positivos
     if (title.includes('ceo') || title.includes('cto') || title.includes('c-level') || title.includes('chief') || title.includes('founder') || title.includes('fundador')) return fieldOptions.find(o => o.value?.toLowerCase().includes('c-level'));
     if (title.includes('director') || title.includes('diretor') || title.includes('head of')) return fieldOptions.find(o => o.value?.toLowerCase().includes('diretor'));
     if (title.includes('manager') || title.includes('gerente') || title.includes('coordenador')) return fieldOptions.find(o => o.value?.toLowerCase().includes('gerente'));
     if (title.includes('specialist') || title.includes('especialista') || title.includes('sr.') || title.includes('sênior')) return fieldOptions.find(o => o.value?.toLowerCase().includes('especialista'));
     if (title.includes('analyst') || title.includes('analista')) return fieldOptions.find(o => o.value?.toLowerCase().includes('analista'));
     if (title.includes('intern') || title.includes('estagiário')) return fieldOptions.find(o => o.value?.toLowerCase().includes('estagiário'));
-    
     return null;
 }
-
-/**
- * Formata o histórico de carreira a partir do array de experiências.
- * @param {Array<object>} experienceArray - O array de experiências do scraper.
- * @returns {string|null} Uma string formatada ou null.
- */
 function formatCareerHistory(experienceArray) {
     if (!Array.isArray(experienceArray) || experienceArray.length === 0) return null;
-    return experienceArray
-        .map(exp => `${exp.title} na ${exp.companyName} (${exp.dateRange || 'N/D'})`)
-        .join('\n');
+    return experienceArray.map(exp => `${exp.title} na ${exp.companyName} (${exp.dateRange || 'N/D'})`).join('\n');
 }
-
-/**
- * Formata o histórico de educação.
- * @param {Array<object>} educationArray - O array de educação do scraper.
- * @returns {string|null} Uma string formatada ou null.
- */
 function formatEducationHistory(educationArray) {
     if (!Array.isArray(educationArray) || educationArray.length === 0) return null;
-    return educationArray
-        .map(edu => `${edu.degree || 'Formação'} em ${edu.schoolName} (${edu.dateRange || 'N/D'})`)
-        .join('; ');
+    return educationArray.map(edu => `${edu.degree || 'Formação'} em ${edu.schoolName} (${edu.dateRange || 'N/D'})`).join('; ');
 }
 
-// ===================================================================
-// MAPEADOR PRINCIPAL
-// ===================================================================
 
-/**
- * Função central que mapeia os dados do scraping para os payloads da API da InHire.
- * @param {object} scrapedData - Os dados brutos do LinkedIn.
- * @param {Array<object>} customFieldDefinitions - As definições dos campos vindas da API InHire.
- * @returns {Promise<{talentPayload: object, customFieldsPayload: Array<object>}>} Payloads prontos para a API.
- */
 export const mapProfileToInhirePayloads = async (scrapedData, customFieldDefinitions) => {
+    log('--- INICIANDO MAPEAMENTO ESTÁTICO DETALHADO ---');
     
-    // --- 1. Payload para os campos GERAIS do talento ---
     const talentPayload = {
         name: scrapedData.name,
         headline: scrapedData.headline,
         linkedinUsername: scrapedData.linkedinUsername,
         location: scrapedData.location,
-        // Pega a empresa da primeira experiência listada, que é a mais recente
         company: scrapedData.experience?.[0]?.companyName || null, 
     };
+    log(`[MAPEAMENTO] Payload Geral do Talento pré-montado.`);
 
-    // --- 2. Payload para os CAMPOS PERSONALIZADOS da candidatura ---
     const customFieldsPayload = [];
 
     for (const field of customFieldDefinitions) {
@@ -96,9 +50,11 @@ export const mapProfileToInhirePayloads = async (scrapedData, customFieldDefinit
         const fieldName = field.name.toLowerCase();
         const firstName = scrapedData.name ? scrapedData.name.split(' ')[0] : null;
 
-        // Lógica de mapeamento baseada no nome do campo (case-insensitive)
+        // <-- MUDANÇA: Adicionado log para cada campo
+        log(`[MAPEAMENTO] Processando campo: '${field.name}' (tipo: ${field.type})`);
+
         if (fieldName.includes('empresa atual')) {
-            value = talentPayload.company; // Usa o mesmo valor já definido
+            value = talentPayload.company;
         } else if (fieldName.includes('sexo')) {
             const genderOptions = field.answerOptions || [];
             if (firstName) {
@@ -107,7 +63,6 @@ export const mapProfileToInhirePayloads = async (scrapedData, customFieldDefinit
                 if (gender === 'female') value = genderOptions.find(o => o.value?.toLowerCase().includes('feminino'));
             }
         } else if (fieldName.includes('universidade') || (fieldName.includes('formação') && !fieldName.includes('complemento'))) {
-            // Pega o nome da primeira instituição de ensino
             value = scrapedData.education?.[0]?.schoolName || null;
         } else if (fieldName.includes('complemento de formação')) {
             value = formatEducationHistory(scrapedData.education);
@@ -130,16 +85,14 @@ export const mapProfileToInhirePayloads = async (scrapedData, customFieldDefinit
             }
         }
 
-        // Adiciona ao payload final se um valor foi encontrado e é válido
+        // <-- MUDANÇA: Adicionado log para o valor encontrado
+        log(`[MAPEAMENTO] Valor encontrado: ${JSON.stringify(value)}`);
+
         if (value !== null && value !== undefined && value !== '') {
-            customFieldsPayload.push({
-                id: field.id,
-                name: field.name,
-                type: field.type,
-                value: value
-            });
+            customFieldsPayload.push({ id: field.id, name: field.name, type: field.type, value: value });
         }
     }
 
+    log('--- MAPEAMENTO ESTÁTICO CONCLUÍDO ---');
     return { talentPayload, customFieldsPayload };
 };
