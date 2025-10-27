@@ -4,7 +4,7 @@ import { log, error as logError } from '../utils/logger.service.js';
 
 const openai = new OpenAI({ 
     apiKey: process.env.OPENAI_API_KEY,
-    timeout: 10000,
+    timeout: 100000,
     maxRetries: 2
 });
 
