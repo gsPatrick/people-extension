@@ -1,9 +1,7 @@
-// VERSÃO BATCH EXTREMA: src/services/match.service.js
-// Usa analyzeAllCriteriaInBatch para máxima velocidade
-
+// src/services/match.service.js
 import db from '../models/index.js';
 import { createEmbeddings } from './embedding.service.js';
-import { analyzeAllCriteriaInBatch } from './ai.service.js'; // <-- Mudança aqui
+import { analyzeAllCriteriaInBatch } from './ai.service.js';
 import { createProfileVectorTable, dropProfileVectorTable } from './vector.service.js';
 import { log, error as logError } from '../utils/logger.service.js';
 import { findById as findScorecardById } from './scorecard.service.js';
@@ -37,7 +35,7 @@ const sortChildrenInMemory = (data) => {
 export const analyze = async (scorecardId, profileData) => {
   const startTime = Date.now();
   const tempTableName = `profile_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  log(`Iniciando análise BATCH EXTREMA com '${tempTableName}'`);
+  log(`Iniciando análise BATCH com '${tempTableName}'`);
   
   let profileTable;
 
@@ -64,7 +62,7 @@ export const analyze = async (scorecardId, profileData) => {
     }));
     profileTable = await createProfileVectorTable(tempTableName, profileDataForLance);
 
-    // 3. 🔥 Busca chunks relevantes para TODOS os critérios em paralelo
+    // 3. Coleta todos os critérios com metadados
     const allCriteriaWithMeta = [];
     
     scorecard.categories.forEach(category => {
@@ -102,7 +100,7 @@ export const analyze = async (scorecardId, profileData) => {
 
     const criteriaWithChunks = await Promise.all(chunksSearchPromises);
 
-    // 5. 🚀 ANÁLISE EM BATCH (1 ou poucas chamadas à API)
+    // 5. 🚀 ANÁLISE EM BATCH (1 chamada à API)
     log(`Analisando ${criteriaWithChunks.length} critérios em BATCH...`);
     const evaluations = await analyzeAllCriteriaInBatch(criteriaWithChunks);
 
@@ -170,7 +168,7 @@ export const analyze = async (scorecardId, profileData) => {
     };
 
     const duration = Date.now() - startTime;
-    log(`✓ Análise BATCH EXTREMA concluída em ${duration}ms. Score: ${overallScore}%`);
+    log(`✓ Análise BATCH concluída em ${duration}ms. Score: ${overallScore}%`);
     
     return result;
 
