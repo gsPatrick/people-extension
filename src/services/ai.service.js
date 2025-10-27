@@ -1,153 +1,193 @@
-// ARQUIVO COMPLETO E ATUALIZADO: src/services/ai.service.js
+// ARQUIVO ULTRA-OTIMIZADO: src/services/match.service.js
+// Processa TODAS as categorias e critérios em paralelo
 
-import { OpenAI } from 'openai';
-import axios from 'axios'; // Precisamos do Axios para chamadas locais
+import db from '../models/index.js';
+import { createEmbeddings } from './embedding.service.js';
+import { analyzeCriterionWithAI } from './ai.service.js';
+import { createProfileVectorTable, dropProfileVectorTable } from './vector.service.js';
 import { log, error as logError } from '../utils/logger.service.js';
+import { findById as findScorecardById } from './scorecard.service.js';
 
-// Configuração do cliente OpenAI (continua aqui para fallback)
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const chunkProfile = (profileData) => {
+  const chunks = [];
+  if (profileData.headline) chunks.push(`Título: ${profileData.headline}`);
+  if (profileData.about) chunks.push(`Sobre: ${profileData.about}`);
+  if (profileData.skills?.length) chunks.push(`Competências: ${profileData.skills.join(', ')}`);
+  if (profileData.experience) {
+    profileData.experience.forEach(exp => {
+      chunks.push(`Experiência: ${exp.title} na ${exp.companyName}. ${exp.description || ''}`.trim());
+    });
+  }
+  return chunks.filter(Boolean);
+};
 
-/**
- * Função para analisar um critério usando um LLM local via Ollama.
- */
-const analyzeCriterionWithLocalAI = async (criterion, relevantChunks) => {
-    const prompt = `
-      Você é um Recrutador Sênior especialista. Avalie um critério com base em evidências de um perfil.
-
-      **CRITÉRIO:** "${criterion.name}"
-
-      **EVIDÊNCIAS:**
-      ${relevantChunks.map(c => `- "${c}"`).join('\n')}
-
-      **ANÁLISE:**
-      1.  Atribua uma nota de 1 a 5 (1: Nenhuma evidência, 3: Evidência fraca, 5: Evidência forte).
-      2.  Escreva uma justificativa curta e objetiva (1 frase).
-
-      **Formato OBRIGATÓRIO da Resposta (APENAS JSON):**
-      {
-        "score": <sua nota de 1 a 5>,
-        "justification": "<sua justificativa>"
-      }
-    `;
-
-    try {
-        log(`Analisando critério "${criterion.name}" com LLM local (${process.env.LOCAL_LLM_MODEL})...`);
-        
-        const response = await axios.post(
-            `${process.env.OLLAMA_API_URL}/api/chat`, 
-            {
-                model: process.env.LOCAL_LLM_MODEL,
-                messages: [{ role: "user", content: prompt }],
-                format: "json", // Magia do Ollama para forçar a saída em JSON
-                stream: false   // Garante que receberemos a resposta completa de uma vez
-            },
-            {
-                headers: { 'Content-Type': 'application/json' }
+const sortChildrenInMemory = (data) => {
+    if (data.categories) {
+        data.categories.sort((a, b) => a.order - b.order);
+        data.categories.forEach(category => {
+            if (category.criteria) {
+                category.criteria.sort((a, b) => a.order - b.order);
+            } else {
+                category.criteria = [];
             }
-        );
-
-        // O Ollama retorna o JSON como uma string dentro de `message.content`
-        const result = JSON.parse(response.data.message.content);
-
-        if (typeof result.score !== 'number' || typeof result.justification !== 'string') {
-            throw new Error("A resposta do LLM local não tem o formato JSON esperado.");
-        }
-
-        return {
-            name: criterion.name,
-            score: result.score,
-            justification: result.justification,
-        };
-
-    } catch (err) {
-        logError(`Falha na avaliação do critério "${criterion.name}" com o LLM local:`, err.response?.data?.error || err.message);
-        return {
-            name: criterion.name,
-            score: 1,
-            justification: "Ocorreu um erro interno ao tentar analisar este critério com a IA local.",
-        };
-    }
-};
-
-/**
- * Função para analisar um critério usando a API da OpenAI (versão original).
- */
-const analyzeCriterionWithOpenAI = async (criterion, relevantChunks) => {
-    const prompt = `
-      Você é um Recrutador Sênior especialista em triagem de candidatos.
-      Sua tarefa é avaliar um único critério de uma vaga com base em trechos específicos de um perfil do LinkedIn.
-
-      **CRITÉRIO A SER AVALIADO:**
-      - Nome: "${criterion.name}"
-
-      **EVIDÊNCIAS (Trechos do perfil mais relevantes para este critério):**
-      ${relevantChunks.map(c => `- "${c}"`).join('\n')}
-
-      **SUA ANÁLISE:**
-      1.  Com base SOMENTE nas evidências fornecidas, atribua uma nota de 1 a 5, onde:
-          1: Nenhuma evidência ou evidência contrária.
-          3: Evidência indireta ou fraca.
-          5: Evidência forte e direta que atende ao critério.
-      2.  Escreva uma justificativa curta e objetiva (idealmente 1 frase, máximo 2) que explique o porquê da sua nota, citando a evidência.
-
-      **Formato OBRIGATÓRIO da Resposta (APENAS JSON, sem texto adicional):**
-      {
-        "score": <sua nota de 1 a 5>,
-        "justification": "<sua justificativa objetiva>"
-      }
-    `;
-
-    try {
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [{ role: "user", content: prompt }],
-            response_format: { type: "json_object" },
-            temperature: 0.1,
         });
-        const result = JSON.parse(response.choices[0].message.content);
-        if (typeof result.score !== 'number' || typeof result.justification !== 'string') {
-            throw new Error("A resposta da IA não continha os campos 'score' e 'justification' esperados.");
-        }
-        return {
-            name: criterion.name,
-            score: result.score,
-            justification: result.justification,
-        };
-    } catch (err) {
-        logError(`Falha na avaliação do critério "${criterion.name}" pela OpenAI:`, err.message);
-        return {
-            name: criterion.name,
-            score: 1,
-            justification: "Ocorreu um erro interno ao tentar analisar este critério com a OpenAI.",
-        };
     }
 };
 
-/**
- * FUNÇÃO PRINCIPAL: Decide qual motor de IA usar com base nas variáveis de ambiente.
- */
-export const analyzeCriterionWithAI = async (criterion, relevantChunks) => {
-    // Se não houver evidências, retorna rapidamente sem chamar a IA.
-    if (!relevantChunks || relevantChunks.length === 0) {
+export const analyze = async (scorecardId, profileData) => {
+  const startTime = Date.now();
+  const tempTableName = `profile_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  log(`Iniciando análise PARALELA com tabela temporária '${tempTableName}'`);
+  
+  let profileTable;
+
+  try {
+    // 1. Busca scorecard (com cache)
+    log(`Buscando scorecard ${scorecardId}...`);
+    const scorecard = await findScorecardById(scorecardId);
+
+    if (!scorecard) {
+      const err = new Error('Scorecard não encontrado.');
+      err.statusCode = 404;
+      throw err;
+    }
+    
+    sortChildrenInMemory(scorecard);
+
+    // 2. Prepara embeddings do perfil
+    const profileChunks = chunkProfile(profileData);
+    if (profileChunks.length === 0) {
+      throw new Error('O perfil não contém texto analisável.');
+    }
+    
+    const profileEmbeddings = await createEmbeddings(profileChunks);
+    const profileDataForLance = profileEmbeddings.map((vector, i) => ({
+      vector,
+      text: profileChunks[i]
+    }));
+    profileTable = await createProfileVectorTable(tempTableName, profileDataForLance);
+
+    // 3. 🔥 OTIMIZAÇÃO: Coleta TODOS os critérios de TODAS as categorias
+    const allCriteriaWithMeta = [];
+    
+    scorecard.categories.forEach(category => {
+      (category.criteria || []).forEach(criterion => {
+        if (!criterion.embedding) {
+          logError(`Critério "${criterion.name}" sem embedding. Pulando.`);
+          return;
+        }
+        
+        allCriteriaWithMeta.push({
+          categoryName: category.name,
+          criterion,
+          weight: criterion.weight
+        });
+      });
+    });
+
+    log(`Processando ${allCriteriaWithMeta.length} critérios em PARALELO...`);
+
+    // 4. 🚀 PROCESSA TUDO EM PARALELO (máxima velocidade)
+    const allEvaluationPromises = allCriteriaWithMeta.map(async ({ criterion, weight, categoryName }) => {
+      try {
+        // Busca chunks relevantes no perfil
+        const searchResults = await profileTable.search(criterion.embedding)
+            .limit(3)
+            .select(['text'])
+            .execute();
+
+        const uniqueRelevantChunks = [...new Set(searchResults.map(r => r.text))];
+        
+        // Analisa com IA
+        const evaluation = await analyzeCriterionWithAI(criterion, uniqueRelevantChunks);
+        
         return {
+          categoryName,
+          evaluation,
+          weight,
+          success: true
+        };
+      } catch (err) {
+        logError(`Erro ao avaliar critério "${criterion.name}":`, err.message);
+        return {
+          categoryName,
+          evaluation: {
             name: criterion.name,
             score: 1,
-            justification: "Nenhuma evidência relevante foi encontrada no perfil para este critério."
+            justification: "Erro na análise"
+          },
+          weight,
+          success: false
         };
-    }
+      }
+    });
 
-    // Verifica a variável de ambiente para decidir qual função chamar.
-    if (process.env.USE_LOCAL_LLM === 'true') {
-        if (!process.env.OLLAMA_API_URL || !process.env.LOCAL_LLM_MODEL) {
-            logError("Variáveis de ambiente para LLM local (OLLAMA_API_URL, LOCAL_LLM_MODEL) não configuradas.");
-            throw new Error("LLM local habilitado, mas não configurado corretamente no .env");
-        }
-        return analyzeCriterionWithLocalAI(criterion, relevantChunks);
-    } else {
-        if (!process.env.OPENAI_API_KEY) {
-            logError("Chave da API da OpenAI não configurada no .env");
-            throw new Error("Chave da API da OpenAI não configurada.");
-        }
-        return analyzeCriterionWithOpenAI(criterion, relevantChunks);
+    // 5. Aguarda TODAS as análises de uma vez
+    const allResults = await Promise.all(allEvaluationPromises);
+    
+    // 6. Agrupa resultados por categoria
+    const categoryMap = new Map();
+    
+    scorecard.categories.forEach(category => {
+      categoryMap.set(category.name, {
+        name: category.name,
+        criteria: [],
+        weightedScore: 0,
+        totalWeight: 0
+      });
+    });
+
+    allResults.forEach(result => {
+      const category = categoryMap.get(result.categoryName);
+      if (category) {
+        category.criteria.push(result.evaluation);
+        category.weightedScore += result.evaluation.score * result.weight;
+        category.totalWeight += 5 * result.weight;
+      }
+    });
+
+    // 7. Calcula scores finais
+    let totalWeightedScore = 0;
+    let totalWeight = 0;
+    const categoryResults = [];
+
+    categoryMap.forEach(category => {
+      const categoryScore = category.totalWeight > 0 
+        ? Math.round((category.weightedScore / category.totalWeight) * 100) 
+        : 0;
+      
+      totalWeightedScore += category.weightedScore;
+      totalWeight += category.totalWeight;
+      
+      categoryResults.push({
+        name: category.name,
+        score: categoryScore,
+        criteria: category.criteria
+      });
+    });
+
+    const overallScore = totalWeight > 0 
+      ? Math.round((totalWeightedScore / totalWeight) * 100) 
+      : 0;
+
+    const result = {
+        overallScore,
+        profileName: profileData.name,
+        profileHeadline: profileData.headline,
+        categories: categoryResults
+    };
+
+    const duration = Date.now() - startTime;
+    log(`✓ Análise PARALELA concluída em ${duration}ms. Score: ${overallScore}%`);
+    
+    return result;
+
+  } catch (err) {
+    logError('Erro na análise:', err.message);
+    throw err;
+  } finally {
+    if (profileTable) {
+        await dropProfileVectorTable(tempTableName);
     }
+  }
 };
