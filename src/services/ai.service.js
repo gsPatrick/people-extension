@@ -1,4 +1,5 @@
-// src/services/ai.service.js
+// ARQUIVO ATUALIZADO: src/services/ai.service.js
+
 import { OpenAI } from 'openai';
 import { log, error as logError } from '../utils/logger.service.js';
 
@@ -8,6 +9,7 @@ const openai = new OpenAI({
     maxRetries: 2
 });
 
+// Esta função é otimizada para ser rápida e confiável em uma única tarefa.
 const analyzeCriterionWithGPT = async (criterion, relevantChunks) => {
     if (!relevantChunks || relevantChunks.length === 0) {
         return {
@@ -17,6 +19,7 @@ const analyzeCriterionWithGPT = async (criterion, relevantChunks) => {
         };
     }
 
+    // Limitamos os chunks para manter o prompt enxuto e rápido.
     const limitedChunks = relevantChunks.slice(0, 3);
     const prompt = `Avalie o critério: "${criterion.name}"
 
@@ -51,58 +54,33 @@ Escala: 1=sem evidência, 3=parcial, 5=forte`;
     }
 };
 
-// Análise individual (compatibilidade)
-export const analyzeCriterionWithAI = async (criterion, relevantChunks) => {
-    return analyzeCriterionWithGPT(criterion, relevantChunks);
-};
-
-// 🚀 BATCH: 1 chamada para todos os critérios
+// MUDANÇA 1: Tornamos a execução em paralelo o método principal.
+// A abordagem em lote (batch) provou ser muito lenta para o requisito de < 5 segundos.
 export const analyzeAllCriteriaInBatch = async (criteriaWithChunks) => {
     const startTime = Date.now();
-    log(`Análise em BATCH de ${criteriaWithChunks.length} critérios...`);
-
-    const batchPrompt = `Avalie cada critério baseado nas evidências fornecidas.
-
-${criteriaWithChunks.map(({ criterion, chunks }, idx) => `
-CRITÉRIO ${idx + 1}: "${criterion.name}"
-EVIDÊNCIAS: ${chunks.slice(0, 2).join(' | ') || 'Nenhuma'}
-`).join('\n')}
-
-Responda com um único array JSON. Cada objeto no array deve corresponder a um critério avaliado.
-O valor da chave "name" em cada objeto JSON DEVE SER IDÊNTICO ao nome do critério que está sendo avaliado.
-
-Formato da resposta:
-[
-  {"name": "<nome exato do CRITÉRIO 1>", "score": <nota de 1 a 5>, "justification": "<justificativa curta>"},
-  {"name": "<nome exato do CRITÉRIO 2>", "score": <nota de 1 a 5>, "justification": "<justificativa curta>"},
-  ...
-]
-
-Escala de score: 1=sem evidência, 3=parcial, 5=forte`;
+    log(`Análise em PARALELO de ${criteriaWithChunks.length} critérios...`);
 
     try {
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [{ role: "user", content: batchPrompt }],
-            response_format: { type: "json_object" },
-            temperature: 0,
-            max_tokens: 1500
-        });
+        // Dispara todas as requisições de análise individual ao mesmo tempo.
+        const allPromises = criteriaWithChunks.map(({ criterion, chunks }) => 
+            analyzeCriterionWithGPT(criterion, chunks)
+        );
 
-        const content = response.choices[0].message.content;
-        const parsed = JSON.parse(content);
-        const results = Array.isArray(parsed) ? parsed : (parsed.results || parsed.evaluations || []);
-
+        // Aguarda a conclusão de todas as promessas.
+        const results = await Promise.all(allPromises);
+        
         const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-        log(`✓ BATCH concluído em ${duration}s`);
+        log(`✓ Análise em PARALELO concluída em ${duration}s. Todas as ${results.length} avaliações recebidas.`);
 
         return results;
+
     } catch (err) {
-        logError('Erro no batch, usando paralelo:', err.message);
-        return Promise.all(
-            criteriaWithChunks.map(({ criterion, chunks }) => 
-                analyzeCriterionWithGPT(criterion, chunks)
-            )
-        );
+        logError('Erro crítico durante a análise em paralelo:', err.message);
+        // Retorna um array de erros para que o fluxo não quebre completamente
+        return criteriaWithChunks.map(({ criterion }) => ({
+            name: criterion.name,
+            score: 1,
+            justification: "Falha geral na análise paralela"
+        }));
     }
 };
