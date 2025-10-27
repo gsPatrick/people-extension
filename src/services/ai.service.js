@@ -4,7 +4,7 @@ import { log, error as logError } from '../utils/logger.service.js';
 
 const openai = new OpenAI({ 
     apiKey: process.env.OPENAI_API_KEY,
-    timeout: 100000,
+    timeout: 100000, // Timeout aumentado
     maxRetries: 2
 });
 
@@ -61,17 +61,24 @@ export const analyzeAllCriteriaInBatch = async (criteriaWithChunks) => {
     const startTime = Date.now();
     log(`Análise em BATCH de ${criteriaWithChunks.length} critérios...`);
 
-    const batchPrompt = `Avalie cada critério baseado nas evidências:
+    const batchPrompt = `Avalie cada critério baseado nas evidências fornecidas.
 
 ${criteriaWithChunks.map(({ criterion, chunks }, idx) => `
 CRITÉRIO ${idx + 1}: "${criterion.name}"
 EVIDÊNCIAS: ${chunks.slice(0, 2).join(' | ') || 'Nenhuma'}
 `).join('\n')}
 
-Responda com array JSON:
-[{"name": "nome", "score": 1-5, "justification": "breve"}, ...]
+Responda com um único array JSON. Cada objeto no array deve corresponder a um critério avaliado.
+O valor da chave "name" em cada objeto JSON DEVE SER IDÊNTICO ao nome do critério que está sendo avaliado.
 
-Escala: 1=sem evidência, 3=parcial, 5=forte`;
+Formato da resposta:
+[
+  {"name": "<nome exato do CRITÉRIO 1>", "score": <nota de 1 a 5>, "justification": "<justificativa curta>"},
+  {"name": "<nome exato do CRITÉRIO 2>", "score": <nota de 1 a 5>, "justification": "<justificativa curta>"},
+  ...
+]
+
+Escala de score: 1=sem evidência, 3=parcial, 5=forte`;
 
     try {
         const response = await openai.chat.completions.create({

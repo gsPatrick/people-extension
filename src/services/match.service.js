@@ -104,12 +104,7 @@ export const analyze = async (scorecardId, profileData) => {
     log(`Analisando ${criteriaWithChunks.length} critérios em BATCH...`);
     const evaluations = await analyzeAllCriteriaInBatch(criteriaWithChunks);
 
-    // 6. Mapeia resultados de volta aos critérios
-    const resultsMap = new Map(
-      evaluations.map(ev => [ev.name, ev])
-    );
-
-    // 7. Agrupa por categoria
+    // 6. Mapeia resultados de volta aos critérios e 7. Agrupa por categoria
     const categoryMap = new Map();
     
     scorecard.categories.forEach(category => {
@@ -121,12 +116,26 @@ export const analyze = async (scorecardId, profileData) => {
       });
     });
 
-    criteriaWithChunks.forEach(({ categoryName, criterion, weight }) => {
-      const evaluation = resultsMap.get(criterion.name) || {
-        name: criterion.name,
-        score: 1,
-        justification: "Análise não disponível"
-      };
+    // VERIFICAÇÃO DE SEGURANÇA
+    if (evaluations.length !== criteriaWithChunks.length) {
+        logError(`Erro de mapeamento: esperado ${criteriaWithChunks.length} resultados, mas recebeu ${evaluations.length}.`);
+    }
+
+    criteriaWithChunks.forEach(({ categoryName, criterion, weight }, index) => {
+      // MAPEAMENTO POR ÍNDICE (MUITO MAIS ROBUSTO)
+      let evaluation = evaluations[index];
+
+      // Bloco de segurança para garantir que a avaliação é válida
+      if (!evaluation || typeof evaluation.score === 'undefined') {
+        evaluation = {
+          name: criterion.name,
+          score: 1,
+          justification: "Falha na análise da IA"
+        };
+      } else {
+        // Garante que o nome correto (do nosso DB) seja usado
+        evaluation.name = criterion.name;
+      }
 
       const category = categoryMap.get(categoryName);
       if (category) {
