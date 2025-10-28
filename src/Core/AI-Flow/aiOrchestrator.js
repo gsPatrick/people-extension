@@ -1,15 +1,25 @@
-// src/Core/AI-Flow/aiOrchestrator.js
+// ARQUIVO COMPLETO: src/Core/AI-Flow/aiOrchestrator.js
 
 import axios from 'axios';
 import 'dotenv/config';
+import { OpenAI } from 'openai';
 import { log, error } from '../../utils/logger.service.js';
 import { getTalentById } from '../../Inhire/Talents/talents.service.js';
 import { extractProfileData } from '../../Linkedin/profile.service.js';
 import { getCachedProfile, saveCachedProfile, getCacheStatus } from '../../Platform/Cache/cache.service.js';
 
+// --- NOVAS IMPORTAÇÕES PARA A LÓGICA DE FEEDBACK E ANÁLISE (DO CÓDIGO 02) ---
+import { setEvaluationToCache } from '../../services/aiEvaluationCache.service.js';
+import { createEmbeddings } from '../../services/embedding.service.js';
+import { createProfileVectorTable, dropProfileVectorTable } from '../../services/vector.service.js';
+import { analyzeAllCriteriaInBatch } from '../../services/ai.service.js';
+
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
+
+// Esta função permanece inalterada.
 export const syncProfileFromLinkedIn = async (talentId) => {
     log(`--- ORQUESTRADOR IA: Sincronizando perfil do Talento ID: ${talentId} ---`);
     try {
@@ -29,90 +39,114 @@ export const syncProfileFromLinkedIn = async (talentId) => {
     }
 };
 
+// =================================================================================
+// FUNÇÃO PRINCIPAL MODIFICADA PARA ORQUESTRAR ANÁLISE E CACHE (DO CÓDIGO 02)
+// =================================================================================
 export const evaluateScorecardFromCache = async (talentId, jobDetails, scorecard, weights) => {
-    log(`--- ORQUESTRADOR IA: Avaliando SCORECARD COMPLETO para Talento ID: ${talentId} ---`);
+    log(`--- ORQUESTRADOR IA: Avaliando e preparando feedback para Talento ID: ${talentId} ---`);
+    const tempTableName = `eval_${Date.now()}`;
+    let profileTable;
+    
     try {
+        // ETAPA 1: Obter dados do perfil do candidato (lógica existente)
         const talentInHire = await getTalentById(talentId);
-        if (!talentInHire) throw new Error(`Talento com ID ${talentId} não encontrado.`);
-        const linkedinUsername = talentInHire.linkedinUsername;
-        if (!linkedinUsername) throw new Error(`O talento ${talentInHire.name} não possui um LinkedIn associado.`);
-        const cached = getCachedProfile(linkedinUsername);
-        if (!cached) {
-            throw new Error('Dados do perfil não encontrados no cache. Por favor, sincronize com o LinkedIn primeiro.');
-        }
-        return await evaluateEntireScorecardWithAI(cached.profile, jobDetails, scorecard, weights);
+        if (!talentInHire || !talentInHire.linkedinUsername) throw new Error(`Talento ${talentId} ou seu LinkedIn não foram encontrados.`);
+        const cached = getCachedProfile(talentInHire.linkedinUsername);
+        if (!cached) throw new Error('Dados do perfil não encontrados no cache. Sincronize primeiro.');
+
+        // ETAPA 2: Replicar a lógica de análise vetorial para encontrar evidências (chunks)
+        const profileChunks = (cached.profile.about ? [cached.profile.about] : []).concat(
+            (cached.profile.experience || []).map(exp => `${exp.title} na ${exp.companyName}: ${exp.description || ''}`)
+        );
+        const profileEmbeddings = await createEmbeddings(profileChunks);
+        profileTable = await createProfileVectorTable(tempTableName, profileEmbeddings.map((vector, i) => ({ vector, text: profileChunks[i] })));
+
+        const allCriteria = scorecard.skillCategories.flatMap(cat => cat.skills.map(skill => ({ id: skill.id, name: skill.name })));
+        
+        const searchPromises = allCriteria.map(async (criterion) => {
+            const queryVector = await createEmbeddings(criterion.name);
+            const searchResults = await profileTable.search(queryVector[0]).limit(3).select(['text']).execute();
+            return {
+                criterion,
+                chunks: [...new Set(searchResults.map(r => r.text))]
+            };
+        });
+        const criteriaWithChunks = await Promise.all(searchPromises);
+
+        // ETAPA 3: Chamar a IA para avaliar cada critério em paralelo
+        const evaluations = await analyzeAllCriteriaInBatch(criteriaWithChunks);
+
+        // ETAPA 4: Gerar o feedback geral e a decisão final com base nas avaliações
+        const summaryResult = await generateOverallFeedback(jobDetails, cached.profile, evaluations, weights);
+        const finalResult = { evaluations, ...summaryResult };
+        
+        // ETAPA 5: Armazenar a avaliação da IA e as evidências no cache temporário
+        const evidenceMap = criteriaWithChunks.reduce((map, item) => {
+            map[item.criterion.id] = item.chunks;
+            return map;
+        }, {});
+        
+        const cacheKey = `${talentId}_${jobDetails.id}`;
+        setEvaluationToCache(cacheKey, {
+            aiScores: evaluations,
+            evidenceMap: evidenceMap
+        });
+        
+        return finalResult;
+
     } catch (err) {
-        error("Erro na avaliação do scorecard a partir do cache:", err.message);
-        throw err;
+        error("Erro na orquestração da avaliação do scorecard:", err.message);
+        throw err; // Re-lança o erro para a rota lidar
+    } finally {
+        // ETAPA FINAL: Limpar a tabela vetorial temporária
+        if (profileTable) {
+            await dropProfileVectorTable(tempTableName);
+        }
     }
 };
 
-const evaluateEntireScorecardWithAI = async (candidateProfileData, jobDetails, scorecard, weights) => {
-    log(`Enviando perfil de "${candidateProfileData.name}" para análise completa com pesos.`);
-    if (!OPENAI_API_KEY) throw new Error("A chave da API da OpenAI (OPENAI_API_KEY) não está configurada no .env");
-
+/**
+ * Função auxiliar para gerar o feedback geral e a decisão final (DO CÓDIGO 02).
+ */
+const generateOverallFeedback = async (jobDetails, candidateProfile, evaluations, weights) => {
     const weightMap = { 1: 'Baixo', 2: 'Médio', 3: 'Alto' };
-
-    const allSkillsWithWeights = scorecard.skillCategories.flatMap(cat => 
-        cat.skills.map(skill => ({
-            id: skill.id,
-            name: skill.name,
-            weight: weightMap[weights[skill.id] || 2]
-        }))
-    );
+    const evaluationsWithWeights = evaluations.map(ev => ({
+        ...ev,
+        weight: weightMap[weights[ev.id] || 2] || 'Médio'
+    }));
 
     const prompt = `
-        Você é um Tech Recruiter Sênior, especialista em realizar análises profundas de perfis do LinkedIn.
-        Sua tarefa é avaliar o perfil de um candidato para TODOS os critérios de um scorecard, DENTRO DO CONTEXTO de uma vaga, **levando em consideração a prioridade (peso) de cada critério.**
+        **Contexto:** Você é um Tech Recruiter Sênior finalizando uma análise de perfil.
+        **Dados da Vaga:** ${jobDetails.name}
+        **Dados do Candidato:** ${candidateProfile.name} - ${candidateProfile.headline}
+        **Suas Avaliações Detalhadas (Nota/Justificativa/Peso):**
+        ${JSON.stringify(evaluationsWithWeights, null, 2)}
 
-        **Dados da Vaga (Contexto):**
-        ${JSON.stringify(jobDetails, null, 2)}
-
-        **Dados do Candidato (JSON):**
-        ${JSON.stringify(candidateProfileData, null, 2)}
-
-        **Critérios do Scorecard e Suas Prioridades (Pesos):**
-        ${JSON.stringify(allSkillsWithWeights, null, 2)}
-
-        **Seu Processo de Análise (Siga estritamente):**
-        1.  **Entenda o Contexto:** Leia os detalhes da vaga e do candidato.
-        2.  **Considere os Pesos:** Preste muita atenção na prioridade de cada critério. Critérios com peso 'Alto' são cruciais para a vaga. Critérios com peso 'Baixo' são apenas desejáveis. Sua avaliação e nota devem refletir essa importância. Uma ausência em um critério 'Alto' é muito mais grave do que em um 'Baixo'.
-        3.  **Avalie CADA Critério:** Para cada critério na lista, analise o perfil e atribua uma nota de 0 a 5 e uma justificativa curta (1-2 frases).
-            - **Rubrica de Notas (influenciada pelo peso):**
-              - 5: Evidência forte e direta, especialmente em critérios de peso Alto/Médio.
-              - 3-4: Evidência clara, mas talvez menos detalhada.
-              - 1-2: Evidência fraca ou indireta. Uma nota baixa em um critério 'Alto' deve ser justificada claramente.
-              - 0: Nenhuma evidência.
-        4.  **Escreva o Feedback Geral:** Com base em todas as suas avaliações ponderadas, escreva um parágrafo conciso (2-4 frases) resumindo a adequação do candidato para a vaga, mencionando os pontos mais críticos (de peso alto).
-        5.  **Tome a Decisão Final:** Com base na sua análise ponderada, sugira uma decisão. Responda com "YES" se o candidato parece um bom fit (especialmente nos critérios de peso alto), "NO" se parece um mau fit, ou "NO_DECISION" se for ambíguo.
+        **Sua Tarefa:**
+        1.  **Escreva um Feedback Geral:** Com base nas suas avaliações ponderadas, escreva um parágrafo conciso (2-4 frases) resumindo a adequação do candidato para a vaga. Dê ênfase aos pontos com peso 'Alto'.
+        2.  **Tome a Decisão Final:** Sugira uma decisão: "YES" (bom fit), "NO" (mau fit), ou "NO_DECISION" (ambíguo).
 
         **Formato OBRIGATÓRIO da Resposta:**
-        Responda APENAS com um objeto JSON válido, sem texto adicional.
+        Responda APENAS com um objeto JSON válido.
         {
-          "evaluations": [
-            { "id": "ID_DO_CRITERIO_1", "score": <sua nota de 0 a 5>, "justification": "<sua justificativa>" }
-          ],
-          "overallFeedback": "<seu parágrafo de feedback geral aqui>",
-          "finalDecision": "<sua decisão: 'YES', 'NO', ou 'NO_DECISION'>"
+          "overallFeedback": "<seu parágrafo de feedback aqui>",
+          "finalDecision": "<sua decisão aqui>"
         }
     `;
-
     try {
-        const response = await axios.post(OPENAI_API_URL, {
-            model: "gpt-4-turbo-preview",
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
             messages: [{ role: "user", content: prompt }],
-            response_format: { type: "json_object" }
-        }, {
-            headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` }
+            response_format: { type: "json_object" },
+            temperature: 0.1,
         });
-        const result = JSON.parse(response.data.choices[0].message.content);
-        log(`IA retornou avaliação completa do scorecard com pesos.`);
-        return result;
+        return JSON.parse(response.choices[0].message.content);
     } catch (err) {
-        error("Erro ao chamar a API da OpenAI:", err.response?.data || err.message);
-        throw err;
+        error("Erro ao gerar feedback geral da IA:", err.message);
+        return { overallFeedback: "Falha ao gerar o resumo.", finalDecision: "NO_DECISION" };
     }
 };
+
 
 export const getAIEvaluationCacheStatus = async (talentId) => {
     const talentInHire = await getTalentById(talentId);
@@ -197,14 +231,12 @@ const evaluateSkillWithAI = async (candidateProfileData, jobDetails, skillToEval
     }
 };
 
+// --- FUNÇÕES DE MAPEAMENTO DO CÓDIGO 01 MANTIDAS ---
 
 export const mapProfileToCustomFieldsWithAI = async (scrapedProfileData, customFieldDefinitions) => {
     log(`--- ORQUESTRADOR IA: Mapeando perfil de "${scrapedProfileData.name}" para campos personalizados ---`);
     if (!OPENAI_API_KEY) throw new Error("A chave da API da OpenAI (OPENAI_API_KEY) não está configurada no .env");
 
-    // ==========================================================
-    // PROMPT REFINADO PARA ANÁLISE HOLÍSTICA
-    // ==========================================================
     const prompt = `
         Você é um Tech Recruiter Sênior com uma habilidade excepcional para analisar perfis do LinkedIn. Sua tarefa é realizar uma análise profunda e holística de um dossiê de dados de um candidato (em JSON) e usar seu entendimento para preencher, da forma mais completa e precisa possível, os campos de um sistema de recrutamento (ATS).
 
@@ -234,9 +266,6 @@ export const mapProfileToCustomFieldsWithAI = async (scrapedProfileData, customF
           "campo_sem_evidencia_id": null
         }
     `;
-    // ==========================================================
-    // FIM DO PROMPT REFINADO
-    // ==========================================================
 
     try {
         const response = await axios.post(OPENAI_API_URL, {
@@ -320,7 +349,6 @@ export const mapProfileToAllFieldsWithAI = async (scrapedProfileData, customFiel
     }
 };
 
-// A função antiga 'mapProfileToAllFieldsWithAI' é substituída por esta
 export const mapProfileToInhireSchemaWithAI = async (scrapedProfileData, talentFields, jobTalentFields) => {
     log(`--- ORQUESTRADOR IA: Mapeando perfil de "${scrapedProfileData.name}" para o schema completo da InHire ---`);
     if (!OPENAI_API_KEY) throw new Error("A chave da API da OpenAI não está configurada.");
