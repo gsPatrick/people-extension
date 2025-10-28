@@ -1,10 +1,10 @@
-// ATUALIZE O ARQUIVO: src/Core/Candidate-Flow/candidateOrchestrator.js
+// ARQUIVO COMPLETO: src/Core/Candidate-Flow/candidateOrchestrator.js
 
 import { createTalent, deleteTalent, updateTalent } from '../../Inhire/Talents/talents.service.js';
 import { addTalentToJob, updateApplication } from '../../Inhire/JobTalents/jobTalents.service.js';
 import { getCustomFieldsForEntity } from '../../Inhire/CustomDataManager/customDataManager.service.js';
-// Importa o novo mapeador final
-import { mapProfileToInhirePayloads } from './customFieldMapping.js';
+// Importa o novo mapeador de IA no lugar do antigo.
+import { mapProfileToCustomFieldsWithAI } from './aiDataMapper.service.js';
 import { getFromCache, setToCache, clearCacheByPrefix } from '../../utils/cache.service.js';
 import { log, error } from '../../utils/logger.service.js';
 import { saveCachedProfile } from '../../Platform/Cache/cache.service.js';
@@ -56,7 +56,7 @@ export const validateProfile = async (profileUrl) => {
 
 
 export const handleConfirmCreation = async (talentData, jobId) => {
-    log(`--- ORQUESTRADOR (ESTÁTICO/INSTANTÂNEO): Iniciando criação para '${talentData.name}' na vaga '${jobId}' ---`);
+    log(`--- ORQUESTRADOR (IA-POWERED): Iniciando criação para '${talentData.name}' na vaga '${jobId}' ---`);
     try {
         if (!jobId) throw new Error("O ID da Vaga (jobId) é obrigatório.");
 
@@ -69,12 +69,12 @@ export const handleConfirmCreation = async (talentData, jobId) => {
         const application = await addTalentToJob(jobId, newTalent.id);
         if (!application || !application.id) throw new Error("Falha ao criar a candidatura (JobTalent).");
         
-        // === PASSO 3: Mapeamento Estático Completo (rápido) ===
-        log("Mapeando dados do perfil com regras estáticas detalhadas...");
+        // === PASSO 3: Mapeamento com IA em Alta Performance (rápido, < 4s) ===
+        log("Iniciando mapeamento de campos personalizados com IA...");
         const jobTalentFieldsDefinitions = await getCustomFieldsForEntity('JOB_TALENTS');
         
-        // A mágica acontece aqui: uma única chamada para obter ambos os payloads
-        const { talentPayload, customFieldsPayload } = await mapProfileToInhirePayloads(talentData, jobTalentFieldsDefinitions);
+        // Chame o novo serviço de IA.
+        const { talentPayload, customFieldsPayload } = await mapProfileToCustomFieldsWithAI(talentData, jobTalentFieldsDefinitions);
         
         // === PASSO 4: Atualizar talento e candidatura com dados mapeados (rápido) ===
         // O `updateTalent` usa o `talentPayload` que contém mais dados (name, headline, company, etc.)
@@ -83,21 +83,20 @@ export const handleConfirmCreation = async (talentData, jobId) => {
         if (customFieldsPayload.length > 0) {
             await updateApplication(application.id, { customFields: customFieldsPayload });
         }
-        log("Talento e candidatura atualizados com dados mapeados.");
+        log("Talento e candidatura atualizados com dados mapeados pela IA.");
 
-        // === PASSO 5: Salvar no cache local para a IA (rápido) ===
+        // === PASSO 5: Salvar no cache local para futuras análises (rápido) ===
         if (talentData.linkedinUsername) {
             await saveCachedProfile(talentData.linkedinUsername, talentData);
         }
 
         // === PASSO 6: Atualizar cache em memória para a UI (rápido) ===
         const cachedTalents = getFromCache(TALENTS_CACHE_KEY) || [];
-        // Adiciona o talento ao cache com os dados mais ricos que foram mapeados
         cachedTalents.unshift({ id: newTalent.id, ...talentPayload });
         setToCache(TALENTS_CACHE_KEY, cachedTalents);
         clearCacheByPrefix(`candidates_for_job_${jobId}`);
 
-        log("🚀 Processo de criação e preenchimento estático concluído com sucesso.");
+        log("🚀 Processo de criação e preenchimento com IA concluído com sucesso.");
         return { success: true, talent: newTalent, application: application };
 
     } catch(err) {
@@ -106,8 +105,6 @@ export const handleConfirmCreation = async (talentData, jobId) => {
     }
 };
 
-
-// As funções handleEditTalent e handleDeleteTalent permanecem as mesmas
 export const handleEditTalent = async (talentId, updateData) => {
   log(`--- ORQUESTRADOR: Editando talento ${talentId} ---`);
   try {

@@ -36,7 +36,7 @@ export const initializeDatabase = async () => {
         log('✅ Conexão com o PostgreSQL estabelecida com sucesso.');
         
         log('Sincronizando models com o banco de dados (force: true)...');
-        await sequelize.sync({ force: true });
+        await sequelize.sync({ force: false });
         log('✅ Models sincronizados com sucesso (tabelas recriadas).');
     } catch (err) {
         logError('Falha crítica ao inicializar o banco de dados PostgreSQL:', { message: err.message, stack: err.stack });
@@ -98,7 +98,7 @@ const startServer = async () => {
     try {
         // --- ETAPA 1: INICIALIZAÇÃO DAS BASES DE DADOS ---
         log('ETAPA 1: Conectando e sincronizando bancos de dados...');
-        await sequelize.sync({ force: true }); // Conecta, limpa e cria tabelas no PostgreSQL
+        await sequelize.sync({ force: false }); // Conecta, limpa e cria tabelas no PostgreSQL
         await initializeVectorDB();             // Conecta e prepara o LanceDB
         log('✅ Bancos de dados (PostgreSQL & LanceDB) prontos.');
 

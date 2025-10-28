@@ -1,10 +1,11 @@
-// ATUALIZADO: src/Core/Candidate-Flow/updateOrchestrator.js
+
+// ATUALIZE O ARQUIVO: src/Core/Candidate-Flow/updateOrchestrator.js
 
 import { updateTalent } from '../../Inhire/Talents/talents.service.js';
 import { updateApplication } from '../../Inhire/JobTalents/jobTalents.service.js';
 import { getCustomFieldsForEntity } from '../../Inhire/CustomDataManager/customDataManager.service.js';
-// <-- MUDANÇA 1: Trocar a importação da IA pelo mapeador estático
-import { mapProfileToInhirePayloads } from './customFieldMapping.js'; 
+// <-- MUDANÇA 1: Trocar a importação do mapeador estático pelo de IA
+import { mapProfileToCustomFieldsWithAI } from './aiDataMapper.service.js'; 
 import { getFromCache, setToCache } from '../../utils/cache.service.js';
 import { log, error } from '../../utils/logger.service.js';
 import { saveCachedProfile } from '../../Platform/Cache/cache.service.js';
@@ -13,20 +14,20 @@ const TALENTS_CACHE_KEY = 'all_talents';
 
 /**
  * Orquestra a atualização completa de um talento e sua candidatura a partir de novos dados do LinkedIn.
- * AGORA USANDO MAPEAMENTO ESTÁTICO.
+ * AGORA USANDO MAPEAMENTO COM IA.
  */
 export const handleFullProfileUpdate = async (talentId, applicationId, scrapedData) => {
-    log(`--- UPDATE ORCHESTRATOR (ESTÁTICO): Iniciando atualização para Talento ID: ${talentId} ---`);
+    log(`--- UPDATE ORCHESTRATOR (IA): Iniciando atualização para Talento ID: ${talentId} ---`);
     try {
-        // <-- MUDANÇA 2: Remover a chamada de IA e usar o mapeador estático
-        log("Passo 1/3: Mapeando novos dados do perfil com regras estáticas...");
+        // <-- MUDANÇA 2: Usar o mapeador de IA
+        log("Passo 1/3: Mapeando novos dados do perfil com IA de alta performance...");
         const jobTalentFieldsDefinitions = await getCustomFieldsForEntity('JOB_TALENTS');
-        const { talentPayload, customFieldsPayload } = await mapProfileToInhirePayloads(scrapedData, jobTalentFieldsDefinitions);
+        const { talentPayload, customFieldsPayload } = await mapProfileToCustomFieldsWithAI(scrapedData, jobTalentFieldsDefinitions);
         
-        log('==================== PAYLOADS DE ATUALIZAÇÃO PARA A API ====================');
+        log('==================== PAYLOADS DE ATUALIZAÇÃO PARA A API (IA) ====================');
         log('Payload do Talento:', JSON.stringify(talentPayload, null, 2));
         log('Payload de Campos Personalizados:', JSON.stringify(customFieldsPayload, null, 2));
-        log('==========================================================================');
+        log('================================================================================');
 
         // Passo 2: Executar as atualizações
         log("Passo 2/3: Executando atualizações na API InHire...");
@@ -55,11 +56,11 @@ export const handleFullProfileUpdate = async (talentId, applicationId, scrapedDa
             }
         }
 
-        log(`Atualização completa para o talento ${talentId} concluída com sucesso.`);
-        return { success: true, message: 'Talento e candidatura atualizados com sucesso.' };
+        log(`Atualização completa (IA) para o talento ${talentId} concluída com sucesso.`);
+        return { success: true, message: 'Talento e candidatura atualizados com sucesso via IA.' };
 
     } catch (err) {
-        error("Erro em handleFullProfileUpdate:", err.message);
+        error("Erro em handleFullProfileUpdate (IA):", err.message);
         return { success: false, error: err.message };
     }
 };
