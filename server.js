@@ -36,7 +36,7 @@ export const initializeDatabase = async () => {
         log('✅ Conexão com o PostgreSQL estabelecida com sucesso.');
         
         log('Sincronizando models com o banco de dados (force: true)...');
-        await sequelize.sync({ force: false });
+        await sequelize.sync({ force: true });
         log('✅ Models sincronizados com sucesso (tabelas recriadas).');
     } catch (err) {
         logError('Falha crítica ao inicializar o banco de dados PostgreSQL:', { message: err.message, stack: err.stack });
@@ -98,7 +98,7 @@ const startServer = async () => {
     try {
         // --- ETAPA 1: INICIALIZAÇÃO DAS BASES DE DADOS ---
         log('ETAPA 1: Conectando e sincronizando bancos de dados...');
-        await sequelize.sync({ force: false }); // Conecta, limpa e cria tabelas no PostgreSQL
+        await sequelize.sync({ force: true }); // Conecta, limpa e cria tabelas no PostgreSQL
         await initializeVectorDB();             // Conecta e prepara o LanceDB
         log('✅ Bancos de dados (PostgreSQL & LanceDB) prontos.');
 
@@ -141,10 +141,9 @@ const startServer = async () => {
 
         // --- ETAPA 6: AGENDAMENTO DE TAREFAS PERIÓDICAS ---
         log('ETAPA 6: Agendando sincronizações periódicas...');
-        // As duas linhas abaixo foram comentadas para desativar os logs de sincronização repetitivos durante a depuração.
-        // setInterval(syncJobs, 60000);
-        // setInterval(syncTalents, 60000);
-        log('🔄 Sincronização periódica DESATIVADA para depuração.');
+        setInterval(syncJobs, 60000);
+        setInterval(syncTalents, 60000);
+        log('🔄 Sincronização periódica agendada a cada 60s.');
 
     } catch (error) {
         logError('❌ FALHA CRÍTICA NA INICIALIZAÇÃO DO SERVIDOR. O PROCESSO SERÁ ENCERRADO.', error.message);

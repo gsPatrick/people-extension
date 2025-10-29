@@ -1,124 +1,98 @@
-// ARQUIVO COMPLETO E ATUALIZADO (VERSÃO PostgreSQL/Sequelize): src/Core/User-Flow/userService.js
+// CRIE O ARQUIVO: src/Core/User-Flow/userService.js
 
-import db from '../../models/index.js'; // Importa a instância dos models do Sequelize
+import db from '../../Platform/Cache/cache.service.js';
 import bcrypt from 'bcrypt';
 import { log, error } from '../../utils/logger.service.js';
 
 const SALT_ROUNDS = 10;
 
-/**
- * Busca um usuário pelo email no PostgreSQL.
- * @param {string} email
- * @returns {Promise<object|null>} O usuário encontrado (objeto Sequelize) ou null.
- */
-export const findUserByEmail = async (email) => {
+export const findUserByEmail = (email) => {
     try {
-        const user = await db.User.findOne({ where: { email } });
-        // Retorna a instância do Sequelize, que é o que o bcrypt.compare espera depois.
-        return user; 
+        const stmt = db.prepare('SELECT * FROM users WHERE email = ?');
+        return stmt.get(email);
     } catch (err) {
-        error("Erro ao buscar usuário por email no PostgreSQL:", err.message);
+        error("Erro ao buscar usuário por email:", err.message);
         return null;
     }
 };
 
-/**
- * Cria um novo usuário no PostgreSQL.
- * @param {object} userData - { name, email, password, role }
- * @returns {Promise<object>} O novo usuário criado (objeto simples, sem a senha).
- */
 export const createUser = async ({ name, email, password, role = 'user' }) => {
     try {
-        const existingUser = await findUserByEmail(email); // AGORA É ASYNC, ENTÃO USAMOS await
+        const existingUser = findUserByEmail(email);
         if (existingUser) {
             throw new Error('Um usuário com este email já existe.');
         }
 
         const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+        const now = Date.now();
         
-        const newUser = await db.User.create({
-            name,
-            email,
-            password: hashedPassword,
-            role
-        });
+        const stmt = db.prepare(
+            'INSERT INTO users (name, email, password, role, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        const info = stmt.run(name, email, hashedPassword, role, now, now);
         
-        log(`Usuário '${name}' criado com sucesso com ID: ${newUser.id}`);
-        // Retorna um objeto simples do usuário sem a senha, como na versão SQLite
-        return { id: newUser.id, name, email, role, createdAt: newUser.createdAt, updatedAt: newUser.updatedAt };
+        log(`Usuário '${name}' criado com sucesso com ID: ${info.lastInsertRowid}`);
+        return { id: info.lastInsertRowid, name, email, role };
     } catch (err) {
-        error("Erro ao criar usuário no PostgreSQL:", err.message);
+        error("Erro ao criar usuário:", err.message);
         throw err;
     }
 };
 
-/**
- * Retorna todos os usuários do PostgreSQL.
- * @returns {Promise<Array<object>>} Uma lista de usuários (objetos simples, sem a senha).
- */
-export const getAllUsers = async () => {
+export const getAllUsers = () => {
     try {
-        // Usa 'attributes' para excluir o campo 'password' da resposta por segurança.
-        const users = await db.User.findAll({
-            attributes: ['id', 'name', 'email', 'role', 'createdAt', 'updatedAt'],
-            order: [['name', 'ASC']]
-        });
-        // Mapeia para objetos simples para manter o paradigma de retorno
-        return users.map(user => user.get({ plain: true })); 
+        // Nunca retornar a senha, mesmo que hasheada
+        const stmt = db.prepare('SELECT id, name, email, role, createdAt, updatedAt FROM users ORDER BY name ASC');
+        return stmt.all();
     } catch (err) {
-        error("Erro ao buscar todos os usuários do PostgreSQL:", err.message);
+        error("Erro ao buscar todos os usuários:", err.message);
         return [];
     }
 };
 
-/**
- * Atualiza os dados de um usuário no PostgreSQL.
- * @param {string} id - O UUID do usuário.
- * @param {object} updateData - { name, email, password, role }
- * @returns {Promise<boolean>} True se atualizado, lança erro se não encontrado ou falhar.
- */
-export const updateUser = async (id, updateData) => {
+export const updateUser = async (id, { name, email, password, role }) => {
     try {
-        const user = await db.User.findByPk(id);
-        if (!user) {
-            throw new Error("Usuário não encontrado.");
+        const fields = [];
+        const params = [];
+
+        if (name) { fields.push('name = ?'); params.push(name); }
+        if (email) { fields.push('email = ?'); params.push(email); }
+        if (role) { fields.push('role = ?'); params.push(role); }
+        if (password) {
+            const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+            fields.push('password = ?');
+            params.push(hashedPassword);
         }
 
-        // Se uma nova senha for fornecida, faz o hash antes de salvar
-        if (updateData.password) {
-            updateData.password = await bcrypt.hash(updateData.password, SALT_ROUNDS);
+        if (fields.length === 0) {
+            throw new Error("Nenhum campo para atualizar foi fornecido.");
         }
 
-        const [affectedRows] = await db.User.update(updateData, { where: { id } }); // Retorna o número de linhas afetadas
-        
-        if (affectedRows === 0) {
-            // Isso só ocorreria se o findByPk tivesse falhado antes do update
-            throw new Error("Falha ao atualizar o usuário. Nenhuma linha afetada.");
-        }
+        fields.push('updatedAt = ?');
+        params.push(Date.now());
+        params.push(id);
 
+        const stmt = db.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`);
+        stmt.run(...params);
         log(`Usuário ID ${id} atualizado com sucesso.`);
         return true;
     } catch (err) {
-        error(`Erro ao atualizar usuário ID ${id} no PostgreSQL:`, err.message);
+        error(`Erro ao atualizar usuário ID ${id}:`, err.message);
         throw err;
     }
 };
 
-/**
- * Deleta um usuário do PostgreSQL.
- * @param {string} id - O UUID do usuário.
- * @returns {Promise<boolean>} True se deletado, lança erro se não encontrado ou falhar.
- */
-export const deleteUser = async (id) => {
+export const deleteUser = (id) => {
     try {
-        const result = await db.User.destroy({ where: { id } }); // Retorna o número de linhas deletadas
-        if (result === 0) {
+        const stmt = db.prepare('DELETE FROM users WHERE id = ?');
+        const info = stmt.run(id);
+        if (info.changes === 0) {
             throw new Error('Nenhum usuário encontrado com este ID.');
         }
         log(`Usuário ID ${id} deletado com sucesso.`);
         return true;
     } catch (err) {
-        error(`Erro ao deletar usuário ID ${id} no PostgreSQL:`, err.message);
+        error(`Erro ao deletar usuário ID ${id}:`, err.message);
         throw err;
     }
 };
