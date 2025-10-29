@@ -9,7 +9,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'seu-segredo-super-secreto-padrao';
 
 export const login = async (email, password) => {
     log(`Tentativa de login para o email: ${email}`);
-    // CORREÇÃO: Adicionar 'await' para esperar a resolução da Promise.
+    // CORREÇÃO: ADICIONAR 'await' novamente, pois findUserByEmail no userService é ASYNC com PostgreSQL.
     const user = await findUserByEmail(email);
 
     if (!user) {
@@ -17,9 +17,9 @@ export const login = async (email, password) => {
         return null;
     }
 
-    // Certifique-se de que user.password existe antes de tentar comparar
-    if (!user.password) {
-        error(`Falha no login: usuário ${email} não possui senha armazenada.`);
+    // Certifique-se de que user.password existe e é uma string antes de tentar comparar
+    if (!user.password || typeof user.password !== 'string') {
+        error(`Falha no login: usuário ${email} não possui senha armazenada ou a senha está em formato inválido.`);
         return null;
     }
 
