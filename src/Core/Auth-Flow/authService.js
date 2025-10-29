@@ -1,4 +1,4 @@
-// CRIE O ARQUIVO: src/Core/Auth-Flow/authService.js
+// src/Core/Auth-Flow/authService.js
 
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
@@ -9,10 +9,17 @@ const JWT_SECRET = process.env.JWT_SECRET || 'seu-segredo-super-secreto-padrao';
 
 export const login = async (email, password) => {
     log(`Tentativa de login para o email: ${email}`);
-    const user = findUserByEmail(email);
+    // CORREÇÃO: Adicionar 'await' para esperar a resolução da Promise.
+    const user = await findUserByEmail(email);
 
     if (!user) {
         error(`Falha no login: usuário ${email} não encontrado.`);
+        return null;
+    }
+
+    // Certifique-se de que user.password existe antes de tentar comparar
+    if (!user.password) {
+        error(`Falha no login: usuário ${email} não possui senha armazenada.`);
         return null;
     }
 
