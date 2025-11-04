@@ -2,12 +2,15 @@ import { Router } from 'express';
 
 // Middlewares de segurança
 import { authenticateToken, isAdmin } from '../middleware/authMiddleware.js';
+import multer from 'multer'; // 1. Importe o multer
 
 // Roteadores específicos
 import authRoutes from './authRoutes.js';
 import adminRoutes from './adminRoutes.js';
 import scorecardRoutes from './scorecard.routes.js'; // <-- 1. IMPORTAR O ROTEADOR
 import matchRoutes from './match.routes.js'; // <-- IMPORTAR O ROTEADOR DE MATCH TAMBÉM
+import { extractProfileFromPdf } from '../controllers/pdf.controller.js'; // 2. Importe o novo controller
+const upload = multer({ storage: multer.memoryStorage() }); // 3. Configure o multer para usar a memória
 
 // Orquestradores para as rotas da aplicação
 import { validateProfile, handleConfirmCreation, handleEditTalent, handleDeleteTalent } from '../Core/Candidate-Flow/candidateOrchestrator.js';
@@ -276,5 +279,8 @@ router.post('/interview-kit/:kitId/weights', async (req, res) => {
     if (result.success) res.status(200).json({ message: 'Pesos salvos com sucesso.' });
     else res.status(500).json({ error: result.error });
 });
+
+router.post('/extract-from-pdf', upload.single('file'), extractProfileFromPdf); // 4. Adicione a rota
+
 
 export default router;
