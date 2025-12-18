@@ -33,10 +33,18 @@ export const sanitizeText = (text) => {
         .replace(/-- Page \d+ of \d+ --/gi, '')
         .split('\n')
         .map(line => line.trim())
-        // Mantém semântica de espaçamento para Experiências
-        .filter((line, i, arr) => line || (arr[i - 1] && arr[i - 1].trim().length > 0))
+        // FIX: Remove empty lines STRICTLY to avoid noise in tail extraction
+        .filter(line => line && line.length > 0)
         .join('\n');
 };
+
+// Global Regex Constants for consistency
+const KW_RESUMO = /^(resumo|summary)$/i;
+const KW_XP = /^(experiência|experience)$/i;
+const KW_EDU = /^(formação acadêmica|education|formação)$/i;
+const KW_SKILLS = /^(principais competências|competências|skills|top skills)$/i;
+const KW_CERT = /^(certifications|certificações)$/i;
+const KW_IGNORE = /^(idiomas|languages|honors & awards|projects|projetos)$/i;
 
 export const splitSections = (text) => {
     const lines = text.split('\n');
@@ -57,21 +65,12 @@ export const splitSections = (text) => {
     let current = 'header_context';
     let foundResumo = false;
 
-    // Keywords
-    const KW_RESUMO = /^(resumo|summary)$/i;
-    const KW_XP = /^(experiência|experience)$/i;
-    const KW_EDU = /^(formação acadêmica|education|formação)$/i;
-    const KW_SKILLS = /^(principais competências|competências|skills|top skills)$/i;
-    const KW_CERT = /^(certifications|certificações)$/i;
-    const KW_IGNORE = /^(idiomas|languages|honors & awards|projects|projetos)$/i;
-
     for (const line of lines) {
         const trimmed = line.trim();
-        if (!trimmed && current !== 'resumo') continue; // Skip empty lines in structural scan except inside Resumo textarea
+        // Skip empty lines is redundant if sanitizeText does it, but safer here too
+        if (!trimmed) continue;
 
-        // Check Keywords
         if (!foundResumo && KW_RESUMO.test(trimmed)) {
-            // Travamos o contexto anterior
             sections._meta.lastSectionBeforeResumo = current;
             if (current === 'header_context') sections._meta.dataBeforeResumo = [...sections.header_context];
             else if (Array.isArray(sections[current])) sections._meta.dataBeforeResumo = [...sections[current]];
@@ -87,7 +86,6 @@ export const splitSections = (text) => {
         if (KW_CERT.test(trimmed)) { current = 'certificacoes'; continue; }
         if (KW_IGNORE.test(trimmed)) { current = 'outros'; continue; }
 
-        // Add Data
         if (Array.isArray(sections[current])) {
             sections[current].push(line);
         } else if (current === 'resumo') {
@@ -107,8 +105,6 @@ export const parseExperiences = (experienceText) => {
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        // Skip empty lines in logic? No, buffer needs them? 
-        // Better skip empty lines to avoid noise in buffer pop
         if (!line.trim()) continue;
 
         if (dateLineRegex.test(line)) {
@@ -186,62 +182,48 @@ export const buildCanonicalProfile = (rawPdfText) => {
     const linkedinLine = contextLines.find(l => l.includes('linkedin.com'));
     if (linkedinLine) linkedin = linkedinLine;
 
-    // --- REFINED EXTRACTION LOGIC ---
     const extractFromTail = (linesSource) => {
         const clean = linesSource.filter(l => {
-            if (!l || !l.trim()) return false; // STRICT FILTER EMPTY LINES
+            if (!l || !l.trim()) return false;
             const lower = l.toLowerCase();
             return !l.includes('linkedin.com') &&
                 lower !== 'contato' &&
                 lower !== '(linkedin)' &&
                 !lower.startsWith('page ') &&
                 !lower.includes('www.') &&
-                !KW_SKILLS.test(lower) && // Ensure section headers don't leak
+                !KW_SKILLS.test(lower) &&
                 !KW_CERT.test(lower);
         });
-
-        // Keywords local vars (copy from outer scope logic simulation)
-        const KW_SKILLS = /^(principais competências|competências|skills|top skills)$/i;
-        const KW_CERT = /^(certifications|certificações)$/i;
 
         let n = null, t = null, l = null;
 
         if (clean.length > 0) {
-            // Look at last 5 non-empty lines
             const candidates = clean.slice(-5);
 
-            // 1. Identify Location (Bottom-up)
-            // Must contain comma OR known country/state
             for (let i = candidates.length - 1; i >= 0; i--) {
                 const item = candidates[i];
                 if (!l && (item.includes(',') || /brasil|brazil|paulo|minas|rio|janeiro|united states|kingdom|portugal/i.test(item))) {
                     l = item;
-                    candidates.splice(i, 1); // Remove used item
+                    candidates.splice(i, 1);
                     break;
                 }
             }
 
-            // 2. Remaining items are [..., Name, Title] (usually)
-            // Title is usually last remaining. Name is one before.
             if (candidates.length >= 2) {
                 t = candidates.pop();
                 n = candidates.pop();
             } else if (candidates.length === 1) {
-                // Ambiguous. If it looks like a Name (Length < 30, no keywords)?
-                // Or Title? Assume Name if mandatory.
                 n = candidates.pop();
             }
         }
         return { nome: n, titulo: t, localizacao: l };
     };
 
-    // Attempt 1: Header Context
     const res1 = extractFromTail(contextLines);
     nome = res1.nome;
     titulo = res1.titulo;
     localizacao = res1.localizacao;
 
-    // Attempt 2: Trapped Name Recovery
     if (!nome && sections._meta.lastSectionBeforeResumo !== 'header_context') {
         const trappedLines = sections._meta.dataBeforeResumo || [];
         const res2 = extractFromTail(trappedLines);
