@@ -28,7 +28,9 @@ function tryLoadPdf(moduleName) {
 }
 
 // Tenta carregar de várias formas
-pdf = tryLoadPdf('pdf-parse');
+pdf = tryLoadPdf('pdf-parse/index'); // Tenta o index explicitamente
+if (!pdf) pdf = tryLoadPdf('pdf-parse');
+
 // Se não funcionou, tenta o caminho interno
 if (!pdf || (typeof pdf !== 'function' && !pdf.PDFParse)) {
     const internal = tryLoadPdf('pdf-parse/lib/pdf-parse.js');
@@ -75,8 +77,33 @@ export const extractProfileFromPdf = async (req, res) => {
         const pdfBuffer = req.file.buffer;
         console.error(`[PDF-DEBUG] Buffer size: ${pdfBuffer.length}`);
 
-        // CHAMADA PROBLEMÁTICA
-        const data = await pdf(pdfBuffer);
+        // CHAMADA ROBUSTA: Tenta chamar como função, se falhar, tenta com new
+        let data;
+        try {
+            data = await pdf(pdfBuffer);
+        } catch (callError) {
+            if (callError.toString().includes("Class constructors cannot be invoked without 'new'")) {
+                console.error('[PDF-DEBUG] Detected class constructor. Retrying with "new"...');
+                // Se for uma classe, pode ser que precise de new. 
+                // Mas precisamos saber se retorna promise ou instância.
+                // Tentativa 1: new pdf(buffer) (se for promessa/thenable)
+                try {
+                    const instance = new pdf(pdfBuffer);
+                    if (instance && typeof instance.then === 'function') {
+                        data = await instance;
+                    } else if (instance && instance.text) {
+                        data = instance; // Retornou o objeto direto?
+                    } else {
+                        // Talvez precise chamar um método?
+                        throw new Error('Instance created but no clear data method found.');
+                    }
+                } catch (newError) {
+                    throw new Error(`Failed with new: ${newError.message}`);
+                }
+            } else {
+                throw callError;
+            }
+        }
 
         if (!data || !data.text) {
             throw new Error('PDF parsed but returned no text/data.');
