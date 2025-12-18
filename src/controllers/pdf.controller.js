@@ -4,56 +4,80 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 import { log, error as logError } from '../utils/logger.service.js';
 
+// ==================================================================================
+// LOADING PDF-PARSE LIBRARY SAFELY
+// ==================================================================================
 let pdf;
-try {
-    const pdfLib = require('pdf-parse/lib/pdf-parse.js'); // Import direto do arquivo principal se possível, ou fallback
-    // Muitas vezes require('pdf-parse') retorna um objeto module.exports
 
-    log(`🔍 [DEBUG] pdf-parse loaded via require. Type: ${typeof pdfLib}`);
-    if (typeof pdfLib === 'object') log(`🔍 [DEBUG] Keys: ${Object.keys(pdfLib).join(', ')}`);
-
-    if (typeof pdfLib === 'function') {
-        pdf = pdfLib;
-    } else if (pdfLib.default && typeof pdfLib.default === 'function') {
-        pdf = pdfLib.default;
-    } else {
-        log('⚠️ [WARN] pdf-parse export strange. Using it directly as fallback.');
-        pdf = pdfLib;
-    }
-} catch (err) {
-    // Fallback: tentar import padrão
+// Função auxiliar para tentar carregar e validar
+function tryLoadPdf(moduleName) {
     try {
-        const pdfLib = require('pdf-parse');
-        if (typeof pdfLib === 'function') {
-            pdf = pdfLib;
-        } else {
-            pdf = pdfLib.default || pdfLib;
-        }
-        log(`🔍 [DEBUG] pdf-parse loaded via fallback require. Type: ${typeof pdf}`);
+        console.error(`[PDF-DEBUG] Trying to require('${moduleName}')...`);
+        const lib = require(moduleName);
+        console.error(`[PDF-DEBUG] Loaded '${moduleName}'. Type: ${typeof lib}`);
+
+        if (typeof lib === 'function') return lib;
+        if (lib && typeof lib.default === 'function') return lib.default;
+
+        console.error(`[PDF-DEBUG] '${moduleName}' is not a function. Keys: ${Object.keys(lib || {})}`);
+        return lib; // Retorna mesmo se não for função, para debug
     } catch (e) {
-        logError('❌ [CRITICAL] Failed to require pdf-parse:', e);
+        console.error(`[PDF-DEBUG] Failed to load '${moduleName}': ${e.message}`);
+        return null;
     }
 }
 
+// Tenta carregar de várias formas
+pdf = tryLoadPdf('pdf-parse/lib/pdf-parse.js'); // Tenta arquivo direto
+if (!pdf || typeof pdf !== 'function') {
+    const fallback = tryLoadPdf('pdf-parse'); // Tenta pacote padrão
+    if (fallback && typeof fallback === 'function') {
+        pdf = fallback;
+    } else if (!pdf) {
+        pdf = fallback; // Se ambos falharem em ser função, fica com o fallback
+    }
+}
+
+console.error(`[PDF-DEBUG] FINAL PDF OBJECT TYPE: ${typeof pdf}`);
+// ==================================================================================
+
+
 // Função auxiliar para limpar texto
-const cleanText = (text) => text.replace(/\s+/g, ' ').trim();
+const cleanText = (text) => text && text.replace ? text.replace(/\s+/g, ' ').trim() : '';
 
 /**
  * Processa um buffer de PDF e extrai informações estruturadas do perfil.
  */
 export const extractProfileFromPdf = async (req, res) => {
+    console.error('--- CONTROLLER PDF: Recebido request ---');
+
     if (!req.file || !req.file.buffer) {
+        console.error('❌ ERRO: Nenhum arquivo no request.');
         return res.status(400).json({ error: 'Nenhum arquivo PDF foi enviado.' });
     }
 
-    log('--- CONTROLLER PDF: Recebido arquivo PDF para extração. ---');
+    // Validação final da biblioteca antes de usar
+    if (typeof pdf !== 'function') {
+        const msg = `CRITICAL: pdf-parse lib is not a function. It is: ${typeof pdf}. Check server logs.`;
+        console.error(`❌ ${msg}`);
+        return res.status(500).json({ error: msg });
+    }
 
     try {
         const pdfBuffer = req.file.buffer;
+        console.error(`[PDF-DEBUG] Buffer size: ${pdfBuffer.length}`);
+
+        // CHAMADA PROBLEMÁTICA
         const data = await pdf(pdfBuffer);
+
+        if (!data || !data.text) {
+            throw new Error('PDF parsed but returned no text/data.');
+        }
+
+        console.error('[PDF-DEBUG] Text extracted length:', data.text.length);
         const lines = data.text.split('\n').filter(line => line.trim() !== '');
 
-        // --- Lógica de Extração por Blocos (Mais Robusta que Regex) ---
+        // --- Lógica de Extração ---
         const profileData = {
             nome: lines[0] ? cleanText(lines[0]) : null,
             headline: lines[1] ? cleanText(lines[1]) : null,
@@ -61,63 +85,55 @@ export const extractProfileFromPdf = async (req, res) => {
             experiencias: [],
             formacao: [],
             competencias: [],
-            textoCompleto: data.text // Opcional, para debug
+            textoCompleto: data.text
         };
 
-        let currentSection = ''; // Controla a seção atual: 'resumo', 'experiencia', etc.
-        let tempExperience = null;
-        let tempEducation = null;
+        let currentSection = '';
 
         for (let i = 2; i < lines.length; i++) {
             const line = lines[i].trim();
             if (!line) continue;
 
-            // Detecta o início de uma nova seção
             if (line === 'Resumo') { currentSection = 'resumo'; continue; }
             if (line === 'Experiência') { currentSection = 'experiencia'; continue; }
             if (line === 'Formação acadêmica') { currentSection = 'formacao'; continue; }
             if (line === 'Principais competências') { currentSection = 'competencias'; continue; }
-            if (line.startsWith('Página')) { currentSection = ''; continue; } // Ignora rodapés
+            if (line.startsWith('Página')) { currentSection = ''; continue; }
 
-            // Processa a linha de acordo com a seção atual
             switch (currentSection) {
                 case 'resumo':
                     profileData.resumo += ` ${line}`;
                     break;
-
                 case 'experiencia':
-                    // A lógica aqui assume um padrão. Pode precisar de ajustes.
-                    // Título do Cargo
                     profileData.experiencias.push({
                         cargo: line,
                         empresa: lines[i + 1] || '',
                         periodo: lines[i + 2] || ''
                     });
-                    i += 2; // Pula as próximas 2 linhas que já processamos
+                    i += 2;
                     break;
-
                 case 'formacao':
                     profileData.formacao.push({
                         instituicao: line,
                         curso: lines[i + 1] || '',
                         periodo: lines[i + 2] || ''
                     });
-                    i += 2; // Pula as próximas 2 linhas
+                    i += 2;
                     break;
-
                 case 'competencias':
-                    // As competências geralmente vêm em uma linha, separadas por "·" ou vírgulas
                     profileData.competencias = line.split(/·|,/g).map(s => s.trim()).filter(Boolean);
                     break;
             }
         }
 
         profileData.resumo = cleanText(profileData.resumo);
+
         log('✅ CONTROLLER PDF: Extração do PDF concluída com sucesso.');
         res.status(200).json(profileData);
 
     } catch (error) {
         logError('❌ CONTROLLER PDF: Erro ao processar o PDF:', error.message);
-        res.status(500).json({ error: 'Erro interno ao extrair dados do PDF.' });
+        console.error(error); // Garante que o stack trace saia
+        res.status(500).json({ error: `Erro interno: ${error.message}` });
     }
 };
