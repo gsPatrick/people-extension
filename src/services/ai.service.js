@@ -3,7 +3,7 @@
 import { OpenAI } from 'openai';
 import { log, error as logError } from '../utils/logger.service.js';
 
-const openai = new OpenAI({ 
+const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     timeout: 100000, // Timeout aumentado
     maxRetries: 2
@@ -23,7 +23,7 @@ const analyzeCriterionWithGPT = async (criterion, relevantChunks) => {
     }
 
     const limitedChunks = relevantChunks.slice(0, 3);
-    
+
     // NOVO PROMPT: Personalidade Cética e Rubrica Rigorosa
     const prompt = `
         **Persona:** Você é um Tech Recruiter Sênior extremamente cético e rigoroso. Sua função é proteger a empresa de contratações ruins, exigindo provas claras e inequívocas no perfil do candidato.
@@ -79,12 +79,12 @@ export const analyzeAllCriteriaInBatch = async (criteriaWithChunks) => {
     log(`Análise em PARALELO de ${criteriaWithChunks.length} critérios (com prompt rigoroso)...`);
 
     try {
-        const allPromises = criteriaWithChunks.map(({ criterion, chunks }) => 
+        const allPromises = criteriaWithChunks.map(({ criterion, chunks }) =>
             analyzeCriterionWithGPT(criterion, chunks)
         );
 
         const results = await Promise.all(allPromises);
-        
+
         const duration = ((Date.now() - startTime) / 1000).toFixed(2);
         log(`✓ Análise em PARALELO (rigorosa) concluída em ${duration}s. Todas as ${results.length} avaliações recebidas.`);
 
@@ -97,5 +97,136 @@ export const analyzeAllCriteriaInBatch = async (criteriaWithChunks) => {
             score: 1,
             justification: "Falha geral na análise paralela"
         }));
+    }
+};
+
+/**
+ * Normaliza os dados brutos extraídos do PDF usando um prompt específico para LLM.
+ * @param {object} rawData - O objeto JSON bruto contendo 'textoCompleto'
+ * @returns {Promise<object>} - O JSON normalizado conforme schema
+ */
+export const normalizeProfileData = async (rawData) => {
+
+    // Otimização: Se não tiver texto completo, nem adianta chamar a IA.
+    if (!rawData || (!rawData.textoCompleto && !rawData.resumo)) {
+        logError('normalizeProfileData: Dados insuficientes para normalização.');
+        return null;
+    }
+
+    log(`Iniciando normalização de perfil com LLM (${rawData.textoCompleto?.length || 0} chars)...`);
+
+    const prompt = `
+    Você é um AGENTE DE NORMALIZAÇÃO DE PERFIL PROFISSIONAL.
+
+    Seu objetivo é transformar um JSON EXTRAÍDO DE LINKEDIN, DESORGANIZADO E COM RUÍDO,
+    em um JSON CANÔNICO, LIMPO, DETERMINÍSTICO E PRONTO PARA VETORIZAÇÃO.
+
+    ────────────────────────────────
+    REGRAS ABSOLUTAS (NUNCA QUEBRE)
+    ────────────────────────────────
+
+    1. NÃO invente informações
+    2. NÃO traduza textos
+    3. NÃO resuma descrições
+    4. NÃO altere o sentido original
+    5. NÃO use linguagem criativa
+    6. NÃO use emojis
+    7. NÃO gere texto novo
+    8. NÃO misture experiências
+    9. NÃO utilize LLM para inferência semântica
+    10. TODA transformação deve ser justificável por regra lógica
+
+    Seu papel NÃO é interpretar o currículo.
+    Seu papel é ORGANIZAR DADOS EXISTENTES.
+
+    ────────────────────────────────
+    ENTRADA
+    ────────────────────────────────
+    JSON BRUTO:
+    ${JSON.stringify(rawData, null, 2)}
+
+    ────────────────────────────────
+    SAÍDA OBRIGATÓRIA (SCHEMA)
+    ────────────────────────────────
+
+    {
+      "perfil": {
+        "nome": string | null,
+        "titulo": string | null,
+        "linkedin": string | null,
+        "localizacao": string | null
+      },
+      "resumo": string | null,
+      "experiencias": [
+        {
+          "empresa": string,
+          "cargo": string,
+          "localizacao": string | null,
+          "inicio": string | null, // Formato YYYY-MM ou null
+          "fim": string | null,    // Formato YYYY-MM ou null
+          "descricao": string
+        }
+      ],
+      "formacao": [
+        {
+          "instituicao": string,
+          "curso": string,
+          "inicio": string | null,
+          "fim": string | null
+        }
+      ],
+      "skills": string[],
+      "certificacoes": string[]
+    }
+
+    ────────────────────────────────
+    PROCESSO OBRIGATÓRIO
+    ────────────────────────────────
+
+    ETAPA 1 — LIMPEZA
+    - Remova: Page X of Y, -- X of Y --, Quebras de página
+    - Preserve parágrafos
+
+    ETAPA 2 — PERFIL
+    - Nome: primeira ocorrência clara
+    - Linkedin: URL válida
+    - Localização: cidade/país explícito
+    - Título: linha curta com função principal
+
+    ETAPA 3 — RESUMO
+    - Use APENAS o bloco "Resumo"
+
+    ETAPA 4 — EXPERIÊNCIAS
+    - Parse datas: "outubro de 2025" -> "2025-10", "Present" -> null
+    - Descrição: Texto entre datas e próxima experiência
+
+    ETAPA 5 — FORMAÇÃO
+    - Apenas acadêmica
+
+    ETAPA 6 — SKILLS
+    - Apenas técnicas, unicas, normalizadas.
+
+    ETAPA 7 — VALIDAÇÃO
+    - JSON válido apenas.
+
+    RETORNE APENAS O JSON FINAL.
+    `;
+
+    try {
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o", // Usando modelo mais capaz para parsing complexo
+            messages: [{ role: "system", content: prompt }], // System prompt é melhor para instrução
+            response_format: { type: "json_object" },
+            temperature: 0,
+        });
+
+        const normalizedData = JSON.parse(response.choices[0].message.content);
+        log('✅ Perfil normalizado com sucesso via LLM.');
+        return normalizedData;
+
+    } catch (err) {
+        logError('❌ Erro na normalização com LLM:', err.message);
+        // Fallback: retorna o dado original se der erro, mas idealmente deveria tratar
+        return rawData;
     }
 };
