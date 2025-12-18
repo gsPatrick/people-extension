@@ -50,13 +50,15 @@ export const sanitizeText = (text) => {
 export const splitSections = (text) => {
     const lines = text.split('\n');
     const sections = {
+        header_context: [], // Linhas antes da primeira seção
         resumo: '',
         experiencia: [],
         formacao: [],
-        skills: []
+        skills: [],
+        certificacoes: [] // Novo campo para separar certificações se encontradas
     };
 
-    let current = null;
+    let current = 'header_context';
 
     for (const line of lines) {
         const lower = line.toLowerCase();
@@ -66,14 +68,16 @@ export const splitSections = (text) => {
         if (lower === 'experiência' || lower === 'experience') { current = 'experiencia'; continue; }
         if (lower === 'formação acadêmica' || lower === 'education' || lower === 'formação') { current = 'formacao'; continue; }
         if (lower === 'principais competências' || lower === 'competências' || lower === 'skills' || lower === 'top skills') { current = 'skills'; continue; }
+        if (lower === 'certifications' || lower === 'certificações') { current = 'certificacoes'; continue; }
 
-        // Ignora outras seções irrelevantes
-        if (lower === 'idiomas' || lower === 'languages' || lower === 'certificações' || lower === 'honors & awards' || lower === 'projects') {
-            current = null;
+        if (lower === 'idiomas' || lower === 'languages' || lower === 'honors & awards' || lower === 'projects') {
+            current = 'outros';
             continue;
         }
 
-        if (current === 'resumo') {
+        if (current === 'header_context') {
+            sections.header_context.push(line);
+        } else if (current === 'resumo') {
             sections.resumo += (sections.resumo ? '\n' : '') + line;
         } else if (current === 'experiencia') {
             sections.experiencia.push(line);
@@ -81,21 +85,25 @@ export const splitSections = (text) => {
             sections.formacao.push(line);
         } else if (current === 'skills') {
             sections.skills.push(line);
+        } else if (current === 'certificacoes') {
+            sections.certificacoes.push(line);
         }
     }
 
-    return {
-        resumo: sections.resumo,
-        experiencia: sections.experiencia.join('\n'),
-        formacao: sections.formacao.join('\n'),
-        skills: sections.skills.join('\n')
-    };
+    return sections;
 };
 
 export const parseExperiences = (experienceText) => {
-    if (!experienceText) return [];
+    if (!experienceText || typeof experienceText === 'string') {
+        // Se vier string, split. Se vier array (do splitSections novo), use.
+        // O novo splitSections do write_to_file retorna array no campo experiencia? Não, retorna linhas.
+        // O splitSections NOVO retorna arrays.
+        // Vamos garantir:
+    }
 
-    const lines = experienceText.split('\n');
+    // Adaptação: Se experienceText for array, join. Se for string, split.
+    const lines = Array.isArray(experienceText) ? experienceText : (experienceText || '').split('\n');
+
     const experiences = [];
     let currentExp = null;
 
@@ -108,33 +116,22 @@ export const parseExperiences = (experienceText) => {
         const line = lines[i];
 
         if (dateLineRegex.test(line)) {
-            // FIX: Ordem correta de pop do stack
             // LinkedIn PDF Padrão: 
             // 1. Nome Empresa
             // 2. Título Cargo
             // 3. Data
 
-            // Buffer = [Empresa, Cargo]
-            // Pop() -> Cargo
-            // Pop() -> Empresa
-
             let cargo = "Cargo Indefinido";
             let empresa = "Empresa Indefinida";
 
             if (buffer.length >= 2) {
-                // Último item inserido foi o Cargo (linha 2)
                 cargo = buffer.pop();
-                // Penúltimo item foi Empresa (linha 1)
                 empresa = buffer.pop();
 
-                // O resto era descrição da anterior
                 if (currentExp && buffer.length > 0) {
                     currentExp.descricao += (currentExp.descricao ? '\n' : '') + buffer.join('\n');
                 }
             } else if (buffer.length === 1) {
-                // Muito ambíguo, mas geralmente a linha única acima da data é o cargo ou empresa
-                // No contexto do LinkedIn, geralmente vem Empresa primeiro se misturado.
-                // Mas vamos jogar seguro:
                 empresa = buffer.pop();
             }
 
@@ -154,12 +151,10 @@ export const parseExperiences = (experienceText) => {
             experiences.push(currentExp);
             buffer = [];
 
-            // FIX: Validação estrita de localização
+            // Validação estrita de localização
             if (i + 1 < lines.length) {
                 const nextLine = lines[i + 1];
-                // Só aceita se tiver vírgula (cidade, pais) ou palavras chave explicitas
-                if (nextLine.includes(',') || /brasil|brazil|united states|eua|remoto|remote|híbrido|hybrid/i.test(nextLine)) {
-                    // E que não seja outra data
+                if (nextLine.length < 60 && (nextLine.includes(',') || /brasil|brazil|united states|eua|remoto|remote/i.test(nextLine))) {
                     if (!dateLineRegex.test(nextLine)) {
                         currentExp.localizacao = nextLine;
                         i++;
@@ -167,12 +162,10 @@ export const parseExperiences = (experienceText) => {
                 }
             }
         } else {
-            // Só adiciona linhas não vazias ao buffer
             if (line.trim()) buffer.push(line);
         }
     }
 
-    // Drain buffer
     if (currentExp && buffer.length > 0) {
         currentExp.descricao += (currentExp.descricao ? '\n' : '') + buffer.join('\n');
     }
@@ -180,29 +173,23 @@ export const parseExperiences = (experienceText) => {
     return experiences;
 };
 
-const parseEducation = (eduText) => {
-    if (!eduText) return [];
+const parseEducation = (eduLines) => {
+    if (!eduLines) return [];
 
-    const lines = eduText.split('\n').filter(l => l.trim());
+    // Se vier string, split.
+    const lines = Array.isArray(eduLines) ? eduLines : (eduLines || '').split('\n');
+    const filteredLines = lines.filter(l => l.trim());
     const education = [];
 
-    // Tentativa robusta de agrupar por blocos
-    // Procurar linhas de data e assumir as linhas imediatamente acima
+    for (let i = 0; i < filteredLines.length; i++) {
+        const line = filteredLines[i];
 
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-
-        // Match ano-ano: 2014 - 2022
+        // Match ano-ano: 2014 - 2022 ou (2014 - 2022)
         const dateMatch = line.match(/(\d{4})\s*[-–]\s*(\d{4})/);
         if (dateMatch) {
-            // FIX: Não assumir cegamente i-1 e i-2. Verificar se existem.
-            const curso = i > 0 ? lines[i - 1] : "Curso Indefinido";
-            const instituicao = i > 1 ? lines[i - 2] : (i > 0 ? "Instituição (Verificar)" : "Instituição Indefinida");
+            const curso = i > 0 ? filteredLines[i - 1] : "Curso Indefinido";
+            const instituicao = i > 1 ? filteredLines[i - 2] : (i > 0 ? "Instituição (Verificar)" : "Instituição Indefinida");
 
-            // Refinamento: Se array tem apenas 2 linhas antes da data, ok.
-            // Se tem mais, pode ser que 'instituicao' pegou lixo. 
-            // Mas em 'deterministic logic' sem IA, stack traces fixos são o padrão.
-            // Se i-1 for igual a instituicao (duplicado), limpa.
             const cursoFinal = curso !== instituicao ? curso : "";
 
             education.push({
@@ -220,39 +207,83 @@ export const buildCanonicalProfile = (rawPdfText) => {
     const cleanBody = sanitizeText(rawPdfText);
     const sections = splitSections(cleanBody);
 
-    // Header parsing
-    const allLines = cleanBody.split('\n').filter(l => l.trim());
-    const resumoIndex = allLines.findIndex(l => /^(resumo|summary)$/i.test(l.trim()));
-    // Pega as primeiras linhas até o resumo ou no máximo 6 linhas
-    const limit = resumoIndex > 0 ? Math.min(resumoIndex, 6) : 6;
-    const headerLines = allLines.slice(0, limit);
+    // --- LÓGICA REFINADA DE HEADER ---
+    // Em vez de pegar line[0], olhamos de baixo para cima no contexto antes do resumo.
+    // O PDF do LinkedIn coloca o sidebar antes, então "Conta..." e URL aparecem primeiro.
+    // O Nome e Título ficam LOGO ACIMA do Resumo.
 
-    const perfil = {
-        nome: headerLines[0] || null,
-        titulo: headerLines[1] || null,
-        linkedin: null,
-        localizacao: null
-    };
+    const contextLines = sections.header_context.filter(l => l.trim());
+    let nome = null;
+    let titulo = null;
+    let localizacao = null;
+    let linkedin = null;
 
-    headerLines.forEach(l => {
-        if (l.includes('linkedin.com')) perfil.linkedin = l;
-        // Validação estrita de local no header também
-        if (!perfil.localizacao &&
-            (l.includes(',') || /brasil|brazil|paulo|minas|janeiro/i.test(l)) &&
-            !l.includes('linkedin') && !l.includes('@')) {
-            perfil.localizacao = l;
-        }
+    // Busca LinkedIn explícito no contexto
+    const linkedinLine = contextLines.find(l => l.includes('linkedin.com'));
+    if (linkedinLine) linkedin = linkedinLine;
+
+    // Estratégia "Look Behind Resumo":
+    // As últimas linhas de header_context são:
+    // N-1: Localização (Opcional)
+    // N-2: Título
+    // N-3: Nome
+    // Filtrando lixo de sidebar ("Contato", "Competências", "Certifications")
+
+    // Limpa linhas conhecidas de sidebar
+    const cleanContext = contextLines.filter(l => {
+        const lower = l.toLowerCase();
+        return !l.includes('linkedin.com') &&
+            lower !== 'contato' &&
+            lower !== '(linkedin)' &&
+            !lower.startsWith('page ') &&
+            lower !== 'principais competências' &&
+            lower !== 'certifications' &&
+            lower !== 'certificações' &&
+            !l.includes('www.');
     });
+
+    if (cleanContext.length > 0) {
+        // Pega as últimas 3 linhas candidatas
+        const candidates = cleanContext.slice(-3);
+
+        // Tenta identificar localização na última
+        const last = candidates[candidates.length - 1];
+        if (last && (last.includes(',') || /brasil|brazil|paulo|minas|janeiro/i.test(last))) {
+            localizacao = last;
+            candidates.pop();
+        }
+
+        // O que sobrou?
+        if (candidates.length > 0) {
+            titulo = candidates.pop(); // Última restante é título
+        }
+        if (candidates.length > 0) {
+            nome = candidates.pop(); // Penúltima restante é nome
+        }
+    }
+
+    // Se nome e título ainda forem nulos, fallback para início (caso o layout seja antigo)
+    if (!nome && cleanContext.length >= 1) nome = cleanContext[0];
+    if (!titulo && cleanContext.length >= 2) titulo = cleanContext[1];
 
     const experiences = parseExperiences(sections.experiencia);
     const formacao = parseEducation(sections.formacao);
 
     const skills = sections.skills
-        ? sections.skills.split(/[,·\n]/).map(s => s.trim()).filter(s => s.length > 2)
+        // @ts-ignore
+        ? sections.skills.join('\n').split(/[,·\n]/).map(s => s.trim()).filter(s => s.length > 2)
         : [];
 
+    // Adiciona skills que podem estar no header ("Principais competências" sidebar) se não foram capturadas
+    // (Opcional, mas comum no LinkedIn PDF)
+
     return {
-        perfil,
+        perfil: {
+            nome,
+            titulo,
+            linkedin,
+            localizacao
+        },
         resumo: sections.resumo ? sections.resumo.trim() : null,
         experiencias: experiences,
         formacao: formacao,
