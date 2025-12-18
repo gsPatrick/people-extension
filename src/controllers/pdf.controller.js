@@ -89,13 +89,21 @@ export const extractProfileFromPdf = async (req, res) => {
                 // Tentativa 1: new pdf(buffer) (se for promessa/thenable)
                 try {
                     const instance = new pdf(pdfBuffer);
+                    console.error('[PDF-DEBUG] Instance created with "new".');
+
+                    // INTROSPECTION
+                    const keys = Object.keys(instance);
+                    const protoKeys = Object.getOwnPropertyNames(Object.getPrototypeOf(instance));
+                    console.error(`[PDF-DEBUG] Instance Keys: [${keys.join(', ')}]`);
+                    console.error(`[PDF-DEBUG] Proto Keys: [${protoKeys.join(', ')}]`);
+
                     if (instance && typeof instance.then === 'function') {
                         data = await instance;
                     } else if (instance && instance.text) {
                         data = instance; // Retornou o objeto direto?
                     } else {
                         // Talvez precise chamar um método?
-                        throw new Error('Instance created but no clear data method found.');
+                        throw new Error(`Instance created. Keys: [${keys}]. Proto: [${protoKeys}]. No obvious data method.`);
                     }
                 } catch (newError) {
                     throw new Error(`Failed with new: ${newError.message}`);
