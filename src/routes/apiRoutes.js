@@ -11,22 +11,23 @@ import scorecardRoutes from './scorecard.routes.js'; // <-- 1. IMPORTAR O ROTEAD
 import matchRoutes from './match.routes.js'; // <-- IMPORTAR O ROTEADOR DE MATCH TAMBÉM
 import authRoutes from './authRoutes.js';
 import { extractProfileFromPdf } from '../controllers/pdf.controller.js'; // 2. Importe o novo controller
+import { fetchLinkedInProfilePdf, checkLinkedInCookieStatus } from '../controllers/linkedinPdf.controller.js'; // LinkedIn PDF Scraping
 const upload = multer({ storage: multer.memoryStorage() }); // 3. Configure o multer para usar a memória
 
 // Orquestradores para as rotas da aplicação
 import { validateProfile, handleConfirmCreation, handleEditTalent, handleDeleteTalent } from '../Core/Candidate-Flow/candidateOrchestrator.js';
-import { 
-    fetchAllTalents, 
-    fetchCandidatesForJob, 
-    handleUpdateApplicationStatus, 
-    fetchTalentDetails, 
+import {
+    fetchAllTalents,
+    fetchCandidatesForJob,
+    handleUpdateApplicationStatus,
+    fetchTalentDetails,
     fetchCustomFields,
     fetchCandidateDetailsForJobContext,
     handleUpdateCustomFieldsForApplication
 } from '../Core/management-flow/managementOrchestrator.js';
-import { 
-    fetchScorecardDataForApplication, 
-    handleScorecardSubmission, 
+import {
+    fetchScorecardDataForApplication,
+    handleScorecardSubmission,
     handleCreateScorecardAndKit,
     fetchInterviewKitDetails,
     fetchAvailableKitsForJob,
@@ -141,18 +142,18 @@ router.delete('/applications/:id', async (req, res) => {
 
 // --- ROTAS DE CANDIDATO E PERFIL ---
 router.post('/validate-profile', async (req, res) => {
-  const { profileUrl } = req.body;
-  if (!profileUrl) return res.status(400).json({ error: 'O campo "profileUrl" é obrigatório.' });
-  const result = await validateProfile(profileUrl);
-  if (result.success) res.status(200).json(result);
-  else res.status(500).json({ error: result.error });
+    const { profileUrl } = req.body;
+    if (!profileUrl) return res.status(400).json({ error: 'O campo "profileUrl" é obrigatório.' });
+    const result = await validateProfile(profileUrl);
+    if (result.success) res.status(200).json(result);
+    else res.status(500).json({ error: result.error });
 });
 
 router.post('/create-talent', async (req, res) => {
-  const talentData = req.body;
-  const result = await handleConfirmCreation(talentData, talentData.jobId);
-  if (result.success) res.status(201).json(result.talent);
-  else res.status(500).json({ error: result.error });
+    const talentData = req.body;
+    const result = await handleConfirmCreation(talentData, talentData.jobId);
+    if (result.success) res.status(201).json(result.talent);
+    else res.status(500).json({ error: result.error });
 });
 
 // --- ROTAS DE GERENCIAMENTO (TALENTOS) ---
@@ -197,7 +198,7 @@ router.get('/jobs/:jobId/candidates', async (req, res) => {
 
 router.get('/candidate-details/job/:jobId/talent/:talentId', async (req, res) => {
     const { jobId, talentId } = req.params;
-    const result = await fetchCandidateDetailsForJobContext(jobId, talentId); 
+    const result = await fetchCandidateDetailsForJobContext(jobId, talentId);
     if (result.success) res.status(200).json(result);
     else res.status(500).json({ error: result.error });
 });
@@ -282,6 +283,13 @@ router.post('/interview-kit/:kitId/weights', async (req, res) => {
 });
 
 router.post('/extract-from-pdf', upload.single('file'), extractProfileFromPdf); // 4. Adicione a rota
+
+// --- ROTAS DE LINKEDIN PDF SCRAPING ---
+// Busca dados do perfil do LinkedIn via PDF usando cookies de sessão
+router.post('/linkedin/fetch-profile-pdf', fetchLinkedInProfilePdf);
+
+// Verifica se o cookie do LinkedIn ainda é válido
+router.post('/linkedin/check-cookie-status', checkLinkedInCookieStatus);
 
 // ==========================================================
 // 5. ROTAS DE UTILIDADES (EX: PARSING)
