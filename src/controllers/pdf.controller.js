@@ -12,17 +12,11 @@ let pdf;
 // Função auxiliar para tentar carregar e validar
 function tryLoadPdf(moduleName) {
     try {
-        console.error(`[PDF-DEBUG] Trying to require('${moduleName}')...`);
         const lib = require(moduleName);
-        console.error(`[PDF-DEBUG] Loaded '${moduleName}'. Type: ${typeof lib}`);
-
         if (typeof lib === 'function') return lib;
         if (lib && typeof lib.default === 'function') return lib.default;
-
-        console.error(`[PDF-DEBUG] '${moduleName}' is not a function. Keys: ${Object.keys(lib || {})}`);
-        return lib; // Retorna mesmo se não for função, para debug
+        return lib;
     } catch (e) {
-        console.error(`[PDF-DEBUG] Failed to load '${moduleName}': ${e.message}`);
         return null;
     }
 }
@@ -40,14 +34,11 @@ if (!pdf || (typeof pdf !== 'function' && !pdf.PDFParse)) {
 // Adaptação para quando exporta um objeto com PDFParse
 if (typeof pdf === 'object' && pdf !== null) {
     if (typeof pdf.PDFParse === 'function') {
-        console.error('⚠️ [WARN] Using pdf.PDFParse function from object export.');
         pdf = pdf.PDFParse;
     } else if (pdf.default && typeof pdf.default === 'function') {
         pdf = pdf.default;
     }
 }
-
-console.error(`[PDF-DEBUG] FINAL PDF OBJECT TYPE: ${typeof pdf}`);
 // ==================================================================================
 
 
@@ -58,24 +49,19 @@ const cleanText = (text) => text && text.replace ? text.replace(/\s+/g, ' ').tri
  * Processa um buffer de PDF e extrai informações estruturadas do perfil.
  */
 export const extractProfileFromPdf = async (req, res) => {
-    console.error('--- CONTROLLER PDF: Recebido request ---');
-
     if (!req.file || !req.file.buffer) {
-        console.error('❌ ERRO: Nenhum arquivo no request.');
         return res.status(400).json({ error: 'Nenhum arquivo PDF foi enviado.' });
     }
 
     // Validação final da biblioteca antes de usar
-    if (typeof pdf !== 'function') {
-        const keys = pdf ? Object.keys(pdf).join(', ') : 'null';
-        const msg = `CRITICAL: pdf-parse lib is not a function. It is: ${typeof pdf}. Keys: [${keys}]. Check server logs.`;
-        console.error(`❌ ${msg}`);
+    if (typeof pdf !== 'function' && (!pdf || typeof pdf.PDFParse !== 'function')) {
+        const msg = `CRITICAL: pdf-parse lib not initialized correctly. Check logs.`;
+        logError(msg);
         return res.status(500).json({ error: msg });
     }
 
     try {
         const pdfBuffer = req.file.buffer;
-        console.error(`[PDF-DEBUG] Buffer size: ${pdfBuffer.length}`);
 
         // CONVERSÃO DE TIPO: A lib exige Uint8Array puro, não Buffer
         const pdfData = new Uint8Array(pdfBuffer);
@@ -86,43 +72,24 @@ export const extractProfileFromPdf = async (req, res) => {
             // Tenta chamada direta primeiro
             data = await pdf(pdfData);
         } catch (callError) {
-            if (callError.toString().includes("Class constructors cannot be invoked without 'new'")) {
-                console.error('[PDF-DEBUG] Detected class constructor. Retrying with "new"...');
-                // Se for uma classe, pode ser que precise de new. 
-                // Mas precisamos saber se retorna promise ou instância.
-                // Tentativa 1: new pdf(buffer) (se for promessa/thenable)
+            // Se falhar, tenta instanciar como classe (comum em algumas versões/builds)
+            if (callError.toString().includes("Class constructors") || callError.toString().includes("is not a function")) {
                 try {
                     const instance = new pdf(pdfData);
-                    console.error('[PDF-DEBUG] Instance created with "new".');
 
-                    // INTROSPECTION
-                    const keys = Object.keys(instance);
-                    const protoKeys = Object.getOwnPropertyNames(Object.getPrototypeOf(instance));
-                    console.error(`[PDF-DEBUG] Instance Keys: [${keys.join(', ')}]`);
-                    console.error(`[PDF-DEBUG] Proto Keys: [${protoKeys.join(', ')}]`);
-
-                    // INTROSPECTION REVEALED: getText() exists!
+                    // Verifica se tem método getText (padrão em versões orientadas a objeto)
                     if (typeof instance.getText === 'function') {
-                        console.error('[PDF-DEBUG] Calling instance.getText()...');
-                        const text = await instance.getText();
-                        console.error(`[PDF-DEBUG] getText() returned type: ${typeof text}`);
-
-                        if (typeof text === 'string') {
-                            data = { text };
-                        } else if (text && text.text) {
-                            data = text;
-                        } else {
-                            // Fallback: maybe load() is needed first?
-                            console.error('[PDF-DEBUG] getText() result weird. Trying load()...');
-                            await instance.load();
-                            data = { text: await instance.getText() };
-                        }
-                    } else if (typeof instance.load === 'function') {
-                        // Case: load() might be main entry
-                        await instance.load();
-                        data = instance; // Hope text is attached
+                        data = await instance.getText();
+                        // Normaliza retorno se necessário
+                        if (typeof data === 'string') data = { text: data };
+                    } else if (instance && typeof instance.then === 'function') {
+                        data = await instance;
+                    } else if (instance && instance.text) {
+                        data = instance;
                     } else {
-                        throw new Error(`Instance created but don't know how to extract text. Keys: ${Object.keys(instance)}`);
+                        // Tenta load() como fallback
+                        if (typeof instance.load === 'function') await instance.load();
+                        data = instance;
                     }
                 } catch (newError) {
                     throw new Error(`Failed with new: ${newError.message}`);
@@ -136,7 +103,6 @@ export const extractProfileFromPdf = async (req, res) => {
             throw new Error('PDF parsed but returned no text/data.');
         }
 
-        console.error('[PDF-DEBUG] Text extracted length:', data.text.length);
         const lines = data.text.split('\n').filter(line => line.trim() !== '');
 
         // --- Lógica de Extração ---
@@ -160,7 +126,7 @@ export const extractProfileFromPdf = async (req, res) => {
             if (line === 'Experiência') { currentSection = 'experiencia'; continue; }
             if (line === 'Formação acadêmica') { currentSection = 'formacao'; continue; }
             if (line === 'Principais competências') { currentSection = 'competencias'; continue; }
-            if (line.startsWith('Página')) { currentSection = ''; continue; }
+            if (line.startsWith('Page ') || line.startsWith('-- Page') || line.includes(' of ')) { currentSection = ''; continue; }
 
             switch (currentSection) {
                 case 'resumo':
