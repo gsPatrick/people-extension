@@ -42,8 +42,9 @@ export const sanitizeText = (text) => {
         .replace(/-- Page \d+ of \d+ --/gi, '')
         .split('\n')
         .map(line => line.trim())
-        .filter(line => line) // Remove linhas vazias
-        .join('\n'); // Texto limpo contínuo
+        // FIX: Preserva uma linha vazia entre blocos para manter semântica
+        .filter((line, i, arr) => line || (arr[i - 1] && arr[i - 1].trim().length > 0))
+        .join('\n');
 };
 
 export const splitSections = (text) => {
@@ -55,30 +56,19 @@ export const splitSections = (text) => {
         skills: []
     };
 
-    let current = null; // 'resumo', 'experiencia', 'formacao', 'skills'
+    let current = null;
 
     for (const line of lines) {
         const lower = line.toLowerCase();
 
-        // Âncoras literais
-        if (lower === 'resumo' || lower === 'summary') {
-            current = 'resumo';
-            continue;
-        }
-        if (lower === 'experiência' || lower === 'experience') {
-            current = 'experiencia';
-            continue;
-        }
-        if (lower === 'formação acadêmica' || lower === 'education' || lower === 'formação') {
-            current = 'formacao';
-            continue;
-        }
-        if (lower === 'principais competências' || lower === 'competências' || lower === 'skills' || lower === 'top skills') {
-            current = 'skills';
-            continue;
-        }
-        // Ignorar outras seções não mapeadas
-        if (lower === 'idiomas' || lower === 'certificações' || lower === 'honors & awards') {
+        // Âncoras literais estritas
+        if (lower === 'resumo' || lower === 'summary') { current = 'resumo'; continue; }
+        if (lower === 'experiência' || lower === 'experience') { current = 'experiencia'; continue; }
+        if (lower === 'formação acadêmica' || lower === 'education' || lower === 'formação') { current = 'formacao'; continue; }
+        if (lower === 'principais competências' || lower === 'competências' || lower === 'skills' || lower === 'top skills') { current = 'skills'; continue; }
+
+        // Ignora outras seções irrelevantes
+        if (lower === 'idiomas' || lower === 'languages' || lower === 'certificações' || lower === 'honors & awards' || lower === 'projects') {
             current = null;
             continue;
         }
@@ -93,12 +83,6 @@ export const splitSections = (text) => {
             sections.skills.push(line);
         }
     }
-
-    // Join arrays back to string for parsing logic expecting blocks? 
-    // No, parseExperiences expects lines array behavior effectively, specifically "Experience Text". 
-    // The previous implementation used array push, let's keep array for parsing functions or join.
-    // The requirement says splitSections returns strings probably for block processing.
-    // Let's refine based on "parseExperiences(experienceText: string)". So let's join logic.
 
     return {
         resumo: sections.resumo,
@@ -116,54 +100,44 @@ export const parseExperiences = (experienceText) => {
     let currentExp = null;
 
     // Regex para detectar linha de data/duração
-    // Padrão: "outubro de 2023 - Present (1 ano 4 meses)" ou "Jan 2020 - Dec 2021 · 2 yrs"
     const dateLineRegex = /((?:jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-z]*\s*(?:de\s*)?\d{4}|presente|present|atual)\s*[-–]\s*((?:jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-z]*\s*(?:de\s*)?\d{4}|presente|present|atual)/i;
 
-    // Buffer para armazenar linhas que podem ser Cargo/Empresa antes da data
     let buffer = [];
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
 
         if (dateLineRegex.test(line)) {
-            // Encontrou data -> Consolidar o bloco anterior se existir
-            // As linhas imediatamente ANTES desta data são Cargo e Empresa.
-            // Geralmente: 
-            // 1. Cargo
-            // 2. Empresa
-            // 3. Data (Atual)
-            // OU
-            // 1. Empresa
-            // 2. Cargo
+            // FIX: Ordem correta de pop do stack
+            // LinkedIn PDF Padrão: 
+            // 1. Nome Empresa
+            // 2. Título Cargo
             // 3. Data
 
-            // Heurística de stack:
-            // buffer[buffer.length-1] = Empresa (imediatamente antes da data?) 
-            // buffer[buffer.length-2] = Cargo
-            // Essa estrutura varia muito no PDF do LinkedIn. 
-            // Vamos assumir: buffer[last] = Empresa, buffer[last-1] = Cargo.
+            // Buffer = [Empresa, Cargo]
+            // Pop() -> Cargo
+            // Pop() -> Empresa
 
-            let cargo = "Cargo Desconhecido";
-            let empresa = "Empresa Desconhecida";
-
-            // Se temos algo no buffer, usaremos as últimas linhas como Cargo/Empresa.
-            // O resto do buffer pertence à descrição da experiência ANTERIOR (se houver).
+            let cargo = "Cargo Indefinido";
+            let empresa = "Empresa Indefinida";
 
             if (buffer.length >= 2) {
-                empresa = buffer.pop();
+                // Último item inserido foi o Cargo (linha 2)
                 cargo = buffer.pop();
+                // Penúltimo item foi Empresa (linha 1)
+                empresa = buffer.pop();
 
-                // O que sobrou no buffer era descrição da anterior
+                // O resto era descrição da anterior
                 if (currentExp && buffer.length > 0) {
                     currentExp.descricao += (currentExp.descricao ? '\n' : '') + buffer.join('\n');
                 }
             } else if (buffer.length === 1) {
-                // Só tem uma linha, ou é cargo ou empresa. LinkedIn costuma por Cargo primeiro.
-                cargo = buffer.pop();
+                // Muito ambíguo, mas geralmente a linha única acima da data é o cargo ou empresa
+                // No contexto do LinkedIn, geralmente vem Empresa primeiro se misturado.
+                // Mas vamos jogar seguro:
+                empresa = buffer.pop();
             }
 
-            // Inicia nova experiência
-            // Parse das datas
             const dates = line.match(/((?:jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-z]*\s*(?:de\s*)?\d{4}|presente|present|atual)/gi);
             const startRaw = dates ? dates[0] : null;
             const endRaw = dates && dates.length > 1 ? dates[1] : null;
@@ -171,35 +145,34 @@ export const parseExperiences = (experienceText) => {
             currentExp = {
                 empresa: empresa,
                 cargo: cargo,
-                localizacao: null, // Será preenchido se próxima linha não for descrição
+                localizacao: null,
                 inicio: normalizeDate(startRaw),
                 fim: normalizeDate(endRaw),
                 descricao: ""
             };
 
             experiences.push(currentExp);
-            buffer = []; // Limpa buffer após processar cabeçalho
+            buffer = [];
 
-            // Verifica localização na próxima linha
+            // FIX: Validação estrita de localização
             if (i + 1 < lines.length) {
                 const nextLine = lines[i + 1];
-                // Heurística simples para local: curto e contem virgula ou pais
-                if (nextLine.length < 50 && !dateLineRegex.test(nextLine)) {
-                    currentExp.localizacao = nextLine;
-                    i++; // Pula linha de local
+                // Só aceita se tiver vírgula (cidade, pais) ou palavras chave explicitas
+                if (nextLine.includes(',') || /brasil|brazil|united states|eua|remoto|remote|híbrido|hybrid/i.test(nextLine)) {
+                    // E que não seja outra data
+                    if (!dateLineRegex.test(nextLine)) {
+                        currentExp.localizacao = nextLine;
+                        i++;
+                    }
                 }
             }
         } else {
-            // Acumula no buffer. Se tivermos uma experiência ativa, 
-            // essas linhas podem ser descrição OU cabeçalho da próxima.
-            // Só saberemos quando encontrarmos a PRÓXIMA data.
-            // Por enquanto guardamos no buffer.
-            // Se acabar o loop, o buffer todo vira descrição da última.
-            buffer.push(line);
+            // Só adiciona linhas não vazias ao buffer
+            if (line.trim()) buffer.push(line);
         }
     }
 
-    // Finalização: Drenar buffer restante para a última experiência
+    // Drain buffer
     if (currentExp && buffer.length > 0) {
         currentExp.descricao += (currentExp.descricao ? '\n' : '') + buffer.join('\n');
     }
@@ -210,26 +183,33 @@ export const parseExperiences = (experienceText) => {
 const parseEducation = (eduText) => {
     if (!eduText) return [];
 
-    // Simplificado pois não foi detalhado no requisito "parseExperiences" mas é necessário para o Canonical
-    const lines = eduText.split('\n');
+    const lines = eduText.split('\n').filter(l => l.trim());
     const education = [];
 
-    // Agrupamento simples por blocos de 3 linhas (Instituição, Curso, Data) ou Regex de ano
+    // Tentativa robusta de agrupar por blocos
+    // Procurar linhas de data e assumir as linhas imediatamente acima
+
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        // Heurística: linha com ano "2014 - 2022"
-        if (/\d{4}.*\d{4}/.test(line)) {
-            // Se achou data, linhas anteriores são curso e instituição
-            const instituicao = lines[i - 1] || "Instituição";
-            const curso = lines[i - 2] || ""; // Layout pode variar
 
-            // Extrair anos
-            const years = line.match(/(\d{4})/g);
+        // Match ano-ano: 2014 - 2022
+        const dateMatch = line.match(/(\d{4})\s*[-–]\s*(\d{4})/);
+        if (dateMatch) {
+            // FIX: Não assumir cegamente i-1 e i-2. Verificar se existem.
+            const curso = i > 0 ? lines[i - 1] : "Curso Indefinido";
+            const instituicao = i > 1 ? lines[i - 2] : (i > 0 ? "Instituição (Verificar)" : "Instituição Indefinida");
+
+            // Refinamento: Se array tem apenas 2 linhas antes da data, ok.
+            // Se tem mais, pode ser que 'instituicao' pegou lixo. 
+            // Mas em 'deterministic logic' sem IA, stack traces fixos são o padrão.
+            // Se i-1 for igual a instituicao (duplicado), limpa.
+            const cursoFinal = curso !== instituicao ? curso : "";
+
             education.push({
                 instituicao: instituicao,
-                curso: curso,
-                inicio: years && years[0] ? `${years[0]}-01` : null,
-                fim: years && years[1] ? `${years[1]}-12` : null
+                curso: cursoFinal,
+                inicio: `${dateMatch[1]}-01`,
+                fim: `${dateMatch[2]}-12`
             });
         }
     }
@@ -237,37 +217,45 @@ const parseEducation = (eduText) => {
 };
 
 export const buildCanonicalProfile = (rawPdfText) => {
-    const cleanText = sanitizeText(rawPdfText);
-    const sections = splitSections(cleanText);
+    const cleanBody = sanitizeText(rawPdfText);
+    const sections = splitSections(cleanBody);
 
-    // Tentar extrair nome/titulo do inicio do texto bruto (antes das seções)
-    // O sanitizeText removeu duplicatas, mas o splitSections separou baseado em keywords.
-    // O que vem antes de "Resumo" é o perfil.
-    const allLines = cleanText.split('\n');
-    const resumoIndex = allLines.findIndex(l => l.toLowerCase() === 'resumo' || l.toLowerCase() === 'summary');
-
-    const headerLines = resumoIndex > 0 ? allLines.slice(0, resumoIndex) : allLines.slice(0, 5);
+    // Header parsing
+    const allLines = cleanBody.split('\n').filter(l => l.trim());
+    const resumoIndex = allLines.findIndex(l => /^(resumo|summary)$/i.test(l.trim()));
+    // Pega as primeiras linhas até o resumo ou no máximo 6 linhas
+    const limit = resumoIndex > 0 ? Math.min(resumoIndex, 6) : 6;
+    const headerLines = allLines.slice(0, limit);
 
     const perfil = {
         nome: headerLines[0] || null,
         titulo: headerLines[1] || null,
-        linkedin: headerLines.find(l => l.includes('linkedin.com')) || null,
-        localizacao: headerLines.find(l => !l.includes('linkedin') && !l.includes('@') && l.length < 50 && l !== headerLines[0] && l !== headerLines[1]) || null
+        linkedin: null,
+        localizacao: null
     };
 
-    const experiences = parseExperiences(sections.experiencia);
-    const formacao = parseEducation(sections.formacao); // Necessário implementar básico mesmo sem requisito explícito detalhado, para cumprir o schema
+    headerLines.forEach(l => {
+        if (l.includes('linkedin.com')) perfil.linkedin = l;
+        // Validação estrita de local no header também
+        if (!perfil.localizacao &&
+            (l.includes(',') || /brasil|brazil|paulo|minas|janeiro/i.test(l)) &&
+            !l.includes('linkedin') && !l.includes('@')) {
+            perfil.localizacao = l;
+        }
+    });
 
-    // Skills: string única para array
+    const experiences = parseExperiences(sections.experiencia);
+    const formacao = parseEducation(sections.formacao);
+
     const skills = sections.skills
         ? sections.skills.split(/[,·\n]/).map(s => s.trim()).filter(s => s.length > 2)
         : [];
 
     return {
         perfil,
-        resumo: sections.resumo,
+        resumo: sections.resumo ? sections.resumo.trim() : null,
         experiencias: experiences,
         formacao: formacao,
-        skills: [...new Set(skills)] // Remove duplicatas
+        skills: [...new Set(skills)]
     };
 };
