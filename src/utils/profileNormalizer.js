@@ -33,12 +33,11 @@ export const sanitizeText = (text) => {
         .replace(/-- Page \d+ of \d+ --/gi, '')
         .split('\n')
         .map(line => line.trim())
-        // FIX: Remove empty lines STRICTLY to avoid noise in tail extraction
-        .filter(line => line && line.length > 0)
+        .filter(line => line && line.length > 0) // Strict empty line filter
         .join('\n');
 };
 
-// Global Regex Constants for consistency
+// Global Regex Constants
 const KW_RESUMO = /^(resumo|summary)$/i;
 const KW_XP = /^(experiência|experience)$/i;
 const KW_EDU = /^(formação acadêmica|education|formação)$/i;
@@ -67,7 +66,6 @@ export const splitSections = (text) => {
 
     for (const line of lines) {
         const trimmed = line.trim();
-        // Skip empty lines is redundant if sanitizeText does it, but safer here too
         if (!trimmed) continue;
 
         if (!foundResumo && KW_RESUMO.test(trimmed)) {
@@ -183,12 +181,13 @@ export const buildCanonicalProfile = (rawPdfText) => {
     if (linkedinLine) linkedin = linkedinLine;
 
     const extractFromTail = (linesSource) => {
+        // Filter out trash
         const clean = linesSource.filter(l => {
             if (!l || !l.trim()) return false;
             const lower = l.toLowerCase();
             return !l.includes('linkedin.com') &&
                 lower !== 'contato' &&
-                lower !== '(linkedin)' &&
+                !lower.includes('(linkedin)') &&
                 !lower.startsWith('page ') &&
                 !lower.includes('www.') &&
                 !KW_SKILLS.test(lower) &&
@@ -198,8 +197,10 @@ export const buildCanonicalProfile = (rawPdfText) => {
         let n = null, t = null, l = null;
 
         if (clean.length > 0) {
-            const candidates = clean.slice(-5);
+            // Take up to last 6 meaningful lines
+            let candidates = clean.slice(-6);
 
+            // 1. Identify Location (Bottom-Up)
             for (let i = candidates.length - 1; i >= 0; i--) {
                 const item = candidates[i];
                 if (!l && (item.includes(',') || /brasil|brazil|paulo|minas|rio|janeiro|united states|kingdom|portugal/i.test(item))) {
@@ -209,11 +210,19 @@ export const buildCanonicalProfile = (rawPdfText) => {
                 }
             }
 
-            if (candidates.length >= 2) {
-                t = candidates.pop();
-                n = candidates.pop();
-            } else if (candidates.length === 1) {
-                n = candidates.pop();
+            // 2. Identify Name vs Title (Top-Down on remaining)
+            if (candidates.length > 0) {
+                const first = candidates[0];
+                const looksLikeTitle = /(engineer|developer|desenvolvedor|analyst|analista|specialist|especialista|manager|gerente|consultant|consultor|\||—|-)/i.test(first) || first.length > 40;
+
+                if (!looksLikeTitle) {
+                    n = candidates.shift(); // First is Name
+                }
+
+                // Everything else is Title part (join them)
+                if (candidates.length > 0) {
+                    t = candidates.join(' ');
+                }
             }
         }
         return { nome: n, titulo: t, localizacao: l };
@@ -227,10 +236,11 @@ export const buildCanonicalProfile = (rawPdfText) => {
     if (!nome && sections._meta.lastSectionBeforeResumo !== 'header_context') {
         const trappedLines = sections._meta.dataBeforeResumo || [];
         const res2 = extractFromTail(trappedLines);
-        if (res2.nome) {
-            nome = res2.nome;
-            titulo = res2.titulo;
-            localizacao = res2.localizacao || localizacao;
+        if (res2.nome || res2.titulo) {
+            // Priority update if found better info in trapped
+            if (res2.nome) nome = res2.nome;
+            if (res2.titulo) titulo = res2.titulo;
+            if (res2.localizacao) localizacao = res2.localizacao;
         }
     }
 
