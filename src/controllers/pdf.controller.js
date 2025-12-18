@@ -97,13 +97,28 @@ export const extractProfileFromPdf = async (req, res) => {
                     console.error(`[PDF-DEBUG] Instance Keys: [${keys.join(', ')}]`);
                     console.error(`[PDF-DEBUG] Proto Keys: [${protoKeys.join(', ')}]`);
 
-                    if (instance && typeof instance.then === 'function') {
-                        data = await instance;
-                    } else if (instance && instance.text) {
-                        data = instance; // Retornou o objeto direto?
+                    // INTROSPECTION REVEALED: getText() exists!
+                    if (typeof instance.getText === 'function') {
+                        console.error('[PDF-DEBUG] Calling instance.getText()...');
+                        const text = await instance.getText();
+                        console.error(`[PDF-DEBUG] getText() returned type: ${typeof text}`);
+
+                        if (typeof text === 'string') {
+                            data = { text };
+                        } else if (text && text.text) {
+                            data = text;
+                        } else {
+                            // Fallback: maybe load() is needed first?
+                            console.error('[PDF-DEBUG] getText() result weird. Trying load()...');
+                            await instance.load();
+                            data = { text: await instance.getText() };
+                        }
+                    } else if (typeof instance.load === 'function') {
+                        // Case: load() might be main entry
+                        await instance.load();
+                        data = instance; // Hope text is attached
                     } else {
-                        // Talvez precise chamar um método?
-                        throw new Error(`Instance created. Keys: [${keys}]. Proto: [${protoKeys}]. No obvious data method.`);
+                        throw new Error(`Instance created but don't know how to extract text. Keys: ${Object.keys(instance)}`);
                     }
                 } catch (newError) {
                     throw new Error(`Failed with new: ${newError.message}`);
