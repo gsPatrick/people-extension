@@ -1,8 +1,11 @@
-// ARQUIVO NOVO: src/controllers/pdf.controller.js
+// ARQUIVO: src/controllers/pdf.controller.js
 
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const pdf = require('pdf-parse');
+const pdfParse = require('pdf-parse');
+// pdf-parse pode exportar de formas diferentes
+const pdf = typeof pdfParse === 'function' ? pdfParse : (pdfParse.default || pdfParse);
+
 import { log, error as logError } from '../utils/logger.service.js';
 
 // Função auxiliar para limpar texto
@@ -54,14 +57,14 @@ export const extractProfileFromPdf = async (req, res) => {
                 case 'resumo':
                     profileData.resumo += ` ${line}`;
                     break;
-                
+
                 case 'experiencia':
                     // A lógica aqui assume um padrão. Pode precisar de ajustes.
                     // Título do Cargo
                     profileData.experiencias.push({
                         cargo: line,
-                        empresa: lines[i+1] || '',
-                        periodo: lines[i+2] || ''
+                        empresa: lines[i + 1] || '',
+                        periodo: lines[i + 2] || ''
                     });
                     i += 2; // Pula as próximas 2 linhas que já processamos
                     break;
@@ -69,8 +72,8 @@ export const extractProfileFromPdf = async (req, res) => {
                 case 'formacao':
                     profileData.formacao.push({
                         instituicao: line,
-                        curso: lines[i+1] || '',
-                        periodo: lines[i+2] || ''
+                        curso: lines[i + 1] || '',
+                        periodo: lines[i + 2] || ''
                     });
                     i += 2; // Pula as próximas 2 linhas
                     break;
