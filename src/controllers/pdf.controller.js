@@ -58,7 +58,8 @@ export const extractProfileFromPdf = async (req, res) => {
 
     // Validação final da biblioteca antes de usar
     if (typeof pdf !== 'function') {
-        const msg = `CRITICAL: pdf-parse lib is not a function. It is: ${typeof pdf}. Check server logs.`;
+        const keys = pdf ? Object.keys(pdf).join(', ') : 'null';
+        const msg = `CRITICAL: pdf-parse lib is not a function. It is: ${typeof pdf}. Keys: [${keys}]. Check server logs.`;
         console.error(`❌ ${msg}`);
         return res.status(500).json({ error: msg });
     }
