@@ -28,13 +28,20 @@ function tryLoadPdf(moduleName) {
 }
 
 // Tenta carregar de várias formas
-pdf = tryLoadPdf('pdf-parse/lib/pdf-parse.js'); // Tenta arquivo direto
-if (!pdf || typeof pdf !== 'function') {
-    const fallback = tryLoadPdf('pdf-parse'); // Tenta pacote padrão
-    if (fallback && typeof fallback === 'function') {
-        pdf = fallback;
-    } else if (!pdf) {
-        pdf = fallback; // Se ambos falharem em ser função, fica com o fallback
+pdf = tryLoadPdf('pdf-parse');
+// Se não funcionou, tenta o caminho interno
+if (!pdf || (typeof pdf !== 'function' && !pdf.PDFParse)) {
+    const internal = tryLoadPdf('pdf-parse/lib/pdf-parse.js');
+    if (internal) pdf = internal;
+}
+
+// Adaptação para quando exporta um objeto com PDFParse
+if (typeof pdf === 'object' && pdf !== null) {
+    if (typeof pdf.PDFParse === 'function') {
+        console.error('⚠️ [WARN] Using pdf.PDFParse function from object export.');
+        pdf = pdf.PDFParse;
+    } else if (pdf.default && typeof pdf.default === 'function') {
+        pdf = pdf.default;
     }
 }
 
