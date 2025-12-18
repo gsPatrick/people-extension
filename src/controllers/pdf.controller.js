@@ -2,27 +2,38 @@
 
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
+import { log, error as logError } from '../utils/logger.service.js';
 
 let pdf;
 try {
-    const pdfLib = require('pdf-parse');
-    console.log('🔍 [DEBUG] pdf-parse loaded. Type:', typeof pdfLib);
-    if (typeof pdfLib === 'object') console.log('🔍 [DEBUG] Keys:', Object.keys(pdfLib));
+    const pdfLib = require('pdf-parse/lib/pdf-parse.js'); // Import direto do arquivo principal se possível, ou fallback
+    // Muitas vezes require('pdf-parse') retorna um objeto module.exports
 
-    // Tenta identificar a função correta
+    log(`🔍 [DEBUG] pdf-parse loaded via require. Type: ${typeof pdfLib}`);
+    if (typeof pdfLib === 'object') log(`🔍 [DEBUG] Keys: ${Object.keys(pdfLib).join(', ')}`);
+
     if (typeof pdfLib === 'function') {
         pdf = pdfLib;
     } else if (pdfLib.default && typeof pdfLib.default === 'function') {
         pdf = pdfLib.default;
     } else {
-        console.warn('⚠️ [WARN] pdf-parse export format not recognized immediately. Using raw export.');
+        log('⚠️ [WARN] pdf-parse export strange. Using it directly as fallback.');
         pdf = pdfLib;
     }
 } catch (err) {
-    console.error('❌ [CRITICAL] Failed to require pdf-parse:', err);
+    // Fallback: tentar import padrão
+    try {
+        const pdfLib = require('pdf-parse');
+        if (typeof pdfLib === 'function') {
+            pdf = pdfLib;
+        } else {
+            pdf = pdfLib.default || pdfLib;
+        }
+        log(`🔍 [DEBUG] pdf-parse loaded via fallback require. Type: ${typeof pdf}`);
+    } catch (e) {
+        logError('❌ [CRITICAL] Failed to require pdf-parse:', e);
+    }
 }
-
-import { log, error as logError } from '../utils/logger.service.js';
 
 // Função auxiliar para limpar texto
 const cleanText = (text) => text.replace(/\s+/g, ' ').trim();
