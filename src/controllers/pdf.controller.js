@@ -77,10 +77,14 @@ export const extractProfileFromPdf = async (req, res) => {
         const pdfBuffer = req.file.buffer;
         console.error(`[PDF-DEBUG] Buffer size: ${pdfBuffer.length}`);
 
+        // CONVERSÃO DE TIPO: A lib exige Uint8Array puro, não Buffer
+        const pdfData = new Uint8Array(pdfBuffer);
+
         // CHAMADA ROBUSTA: Tenta chamar como função, se falhar, tenta com new
         let data;
         try {
-            data = await pdf(pdfBuffer);
+            // Tenta chamada direta primeiro
+            data = await pdf(pdfData);
         } catch (callError) {
             if (callError.toString().includes("Class constructors cannot be invoked without 'new'")) {
                 console.error('[PDF-DEBUG] Detected class constructor. Retrying with "new"...');
@@ -88,7 +92,7 @@ export const extractProfileFromPdf = async (req, res) => {
                 // Mas precisamos saber se retorna promise ou instância.
                 // Tentativa 1: new pdf(buffer) (se for promessa/thenable)
                 try {
-                    const instance = new pdf(pdfBuffer);
+                    const instance = new pdf(pdfData);
                     console.error('[PDF-DEBUG] Instance created with "new".');
 
                     // INTROSPECTION
