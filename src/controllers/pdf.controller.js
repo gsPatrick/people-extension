@@ -2,9 +2,25 @@
 
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const pdfParse = require('pdf-parse');
-// pdf-parse pode exportar de formas diferentes
-const pdf = typeof pdfParse === 'function' ? pdfParse : (pdfParse.default || pdfParse);
+
+let pdf;
+try {
+    const pdfLib = require('pdf-parse');
+    console.log('🔍 [DEBUG] pdf-parse loaded. Type:', typeof pdfLib);
+    if (typeof pdfLib === 'object') console.log('🔍 [DEBUG] Keys:', Object.keys(pdfLib));
+
+    // Tenta identificar a função correta
+    if (typeof pdfLib === 'function') {
+        pdf = pdfLib;
+    } else if (pdfLib.default && typeof pdfLib.default === 'function') {
+        pdf = pdfLib.default;
+    } else {
+        console.warn('⚠️ [WARN] pdf-parse export format not recognized immediately. Using raw export.');
+        pdf = pdfLib;
+    }
+} catch (err) {
+    console.error('❌ [CRITICAL] Failed to require pdf-parse:', err);
+}
 
 import { log, error as logError } from '../utils/logger.service.js';
 
